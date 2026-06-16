@@ -53,9 +53,18 @@ body {
 
 .app-header h1 {
   font-size: 1.4rem;
-  color: var(--color-accent);
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+.app-title-link {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.app-title-link:hover,
+.app-title-link:focus-visible {
+  text-decoration: underline;
 }
 
 .app-subtitle {
