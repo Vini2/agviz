@@ -4,7 +4,7 @@ import { defaultStylesheet } from './styles';
 function findStyle(selector: string) {
   const entry = defaultStylesheet.find((style) => style.selector === selector);
   expect(entry).toBeDefined();
-  return entry!.style;
+  return entry!.style as Record<string, unknown>;
 }
 
 describe('defaultStylesheet', () => {
