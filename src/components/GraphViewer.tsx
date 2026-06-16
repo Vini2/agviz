@@ -4,7 +4,7 @@ import fcose from 'cytoscape-fcose';
 import type { AssemblyGraph } from '../graph/graphTypes';
 import type { AssemblyNode, AssemblyEdge } from '../graph/graphTypes';
 import { graphToCytoscape } from '../graph/cytoscapeElements';
-import { defaultStylesheet } from '../graph/styles';
+import { createStylesheet, getThemePalette } from '../graph/styles';
 import {
   chooseDefaultLayout,
   getLayoutOptions,
@@ -12,6 +12,7 @@ import {
   LARGE_GRAPH_EDGE_THRESHOLD,
 } from '../graph/layouts';
 import type { LayoutName } from '../graph/layouts';
+import type { ThemeMode } from '../graph/coverageColors';
 
 cytoscape.use(fcose);
 
@@ -24,19 +25,57 @@ interface GraphViewerProps {
   graph: AssemblyGraph | null;
   layout: LayoutName;
   onSelect: (element: SelectedElement) => void;
+  themeMode: ThemeMode;
+  colorByCoverage: boolean;
 }
 
-export function GraphViewer({ graph, layout, onSelect }: GraphViewerProps) {
+export function GraphViewer({
+  graph,
+  layout,
+  onSelect,
+  themeMode,
+  colorByCoverage,
+}: GraphViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const handleSelect = useCallback(
     (event: cytoscape.EventObject) => {
       const ele = event.target;
-      if (ele.isNode()) {
-        onSelect({ kind: 'node', data: ele.data() as AssemblyNode });
-      } else if (ele.isEdge()) {
-        onSelect({ kind: 'edge', data: ele.data() as AssemblyEdge });
+      if (!ele.isEdge()) {
+        return;
+      }
+
+      const data = ele.data() as Record<string, unknown>;
+      if (data.kind === 'contig-body') {
+        onSelect({
+          kind: 'node',
+          data: {
+            id: String(data.segmentId),
+            label: String(data.label ?? data.segmentId),
+            length: data.lengthBp as number | undefined,
+            sequence: data.sequence as string | undefined,
+            coverage: data.coverage as number | undefined,
+            degree: data.degree as number | undefined,
+            tags: (data.tags as Record<string, string>) ?? {},
+          },
+        });
+        return;
+      }
+
+      if (data.kind === 'gfa-link') {
+        onSelect({
+          kind: 'edge',
+          data: {
+            id: String(data.originalEdgeId ?? data.id),
+            source: String(data.sourceSegment),
+            target: String(data.targetSegment),
+            sourceOrient: data.sourceOrient as '+' | '-' | undefined,
+            targetOrient: data.targetOrient as '+' | '-' | undefined,
+            overlap: data.overlap as string | undefined,
+            tags: (data.tags as Record<string, string>) ?? {},
+          },
+        });
       }
     },
     [onSelect],
@@ -52,13 +91,13 @@ export function GraphViewer({ graph, layout, onSelect }: GraphViewerProps) {
     const cy = cytoscape({
       container: containerRef.current,
       elements: [],
-      style: defaultStylesheet,
+      style: createStylesheet(themeMode),
       userZoomingEnabled: true,
       userPanningEnabled: true,
     });
 
-    cy.on('select', 'node, edge', handleSelect);
-    cy.on('unselect', 'node, edge', handleUnselect);
+    cy.on('select', 'edge', handleSelect);
+    cy.on('unselect', 'edge', handleUnselect);
 
     cyRef.current = cy;
 
@@ -66,7 +105,14 @@ export function GraphViewer({ graph, layout, onSelect }: GraphViewerProps) {
       cy.destroy();
       cyRef.current = null;
     };
-  }, [handleSelect, handleUnselect]);
+  }, [handleSelect, handleUnselect, themeMode]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    cy.style(createStylesheet(themeMode));
+  }, [themeMode]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -85,7 +131,7 @@ export function GraphViewer({ graph, layout, onSelect }: GraphViewerProps) {
       );
     }
 
-    const elements = graphToCytoscape(graph);
+    const elements = graphToCytoscape(graph, { themeMode, colorByCoverage });
     cy.add([...elements.nodes, ...elements.edges]);
 
     const defaultedLayout = layout === 'fcose' ? chooseDefaultLayout(graph) : layout;
@@ -101,10 +147,12 @@ export function GraphViewer({ graph, layout, onSelect }: GraphViewerProps) {
       cy.fit(undefined, 40);
     });
     layoutRun.run();
-  }, [graph, layout]);
+  }, [graph, layout, themeMode, colorByCoverage]);
+
+  const palette = getThemePalette(themeMode);
 
   return (
-    <div className="graph-viewer-wrapper">
+    <div className="graph-viewer-wrapper" style={{ background: palette.graphBackground }}>
       {!graph && (
         <div className="graph-viewer-placeholder">
           <p>Upload a GFA file to visualise the assembly graph.</p>

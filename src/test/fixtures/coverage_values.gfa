@@ -1,0 +1,8 @@
+H	VN:Z:1.0
+S	low	*	LN:i:1000	DP:f:5
+S	mid	*	LN:i:1000	DP:f:20
+S	high	*	LN:i:1000	DP:f:80
+S	missing	*	LN:i:1000
+L	low	+	mid	+	100M
+L	mid	+	high	+	100M
+L	high	+	missing	+	100M

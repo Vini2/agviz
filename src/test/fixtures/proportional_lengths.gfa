@@ -1,0 +1,4 @@
+H	VN:Z:1.0
+S	one_kb	*	LN:i:1000	DP:f:10
+S	two_kb	*	LN:i:2000	DP:f:20
+L	one_kb	+	two_kb	+	100M

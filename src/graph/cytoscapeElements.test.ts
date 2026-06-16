@@ -1,81 +1,153 @@
-import { describe, it, expect } from 'vitest';
-import { graphToCytoscape } from './cytoscapeElements';
+import { describe, expect, it } from 'vitest';
+import {
+  graphToCytoscape,
+  endpointId,
+  mapLinkEndpoints,
+  type CytoscapeGraphOptions,
+} from './cytoscapeElements';
 import type { AssemblyGraph } from './graphTypes';
-import { MAX_CONTIG_WIDTH, MIN_CONTIG_WIDTH } from './visualScale';
+import type { LengthScaleConfig } from './visualScale';
 
 const sampleGraph: AssemblyGraph = {
   nodes: [
-    { id: 'a', label: 'a', length: 100, coverage: 5, degree: 1, tags: {} },
-    { id: 'b', label: 'b', length: 200, coverage: 10, degree: 1, tags: {} },
+    { id: 'A', label: 'A', length: 1000, coverage: 10, degree: 1, tags: {} },
+    { id: 'B', label: 'B', length: 2000, coverage: 20, degree: 1, tags: {} },
   ],
   edges: [
     {
-      id: 'a-b',
-      source: 'a',
-      target: 'b',
+      id: 'A-B',
+      source: 'A',
+      target: 'B',
       sourceOrient: '+',
-      targetOrient: '+',
-      overlap: '10M',
+      targetOrient: '-',
+      overlap: '100M',
       tags: {},
     },
   ],
   warnings: [],
-  stats: { nodeCount: 2, edgeCount: 1, totalLength: 300 },
+  stats: { nodeCount: 2, edgeCount: 1, totalLength: 3000 },
 };
 
+const testLengthScale: LengthScaleConfig = {
+  pixelsPerBase: 0.1,
+  minVisualLengthPx: 0,
+};
+
+function buildElements(options: CytoscapeGraphOptions = {}) {
+  return graphToCytoscape(sampleGraph, {
+    lengthScale: testLengthScale,
+    ...options,
+  });
+}
+
+describe('mapLinkEndpoints', () => {
+  it('maps all orientation combinations to endpoint ids', () => {
+    expect(mapLinkEndpoints('A', '+', 'B', '+')).toEqual({
+      sourceEndpointId: 'A::__right',
+      targetEndpointId: 'B::__left',
+    });
+    expect(mapLinkEndpoints('A', '+', 'B', '-')).toEqual({
+      sourceEndpointId: 'A::__right',
+      targetEndpointId: 'B::__right',
+    });
+    expect(mapLinkEndpoints('A', '-', 'B', '+')).toEqual({
+      sourceEndpointId: 'A::__left',
+      targetEndpointId: 'B::__left',
+    });
+    expect(mapLinkEndpoints('A', '-', 'B', '-')).toEqual({
+      sourceEndpointId: 'A::__left',
+      targetEndpointId: 'B::__right',
+    });
+  });
+});
+
 describe('graphToCytoscape', () => {
-  it('produces correct number of nodes', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(elements.nodes).toHaveLength(2);
+  it('creates endpoint nodes for each segment', () => {
+    const elements = buildElements();
+    expect(elements.nodes).toHaveLength(4);
+    const ids = elements.nodes.map((node) => node.data.id);
+    expect(ids).toContain(endpointId('A', 'left'));
+    expect(ids).toContain(endpointId('A', 'right'));
+    expect(ids).toContain(endpointId('B', 'left'));
+    expect(ids).toContain(endpointId('B', 'right'));
   });
 
-  it('produces correct number of edges', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(elements.edges).toHaveLength(1);
+  it('creates contig-body and gfa-link edge classes', () => {
+    const elements = buildElements();
+    const classes = elements.edges.map((edge) => edge.classes);
+    expect(classes).toContain('contig-body');
+    expect(classes).toContain('gfa-link');
   });
 
-  it('node data includes id and label', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(elements.nodes[0].data.id).toBe('a');
-    expect(elements.nodes[0].data['label']).toBe('a');
+  it('keeps proportional visual lengths on contig-body edges', () => {
+    const elements = buildElements();
+    const bodyEdges = elements.edges.filter((edge) => edge.classes === 'contig-body');
+    const oneKb = bodyEdges.find((edge) => edge.data.segmentId === 'A');
+    const twoKb = bodyEdges.find((edge) => edge.data.segmentId === 'B');
+
+    expect(oneKb?.data.visualLength).toBe(100);
+    expect(twoKb?.data.visualLength).toBe(200);
+    expect(twoKb!.data.visualLength).toBeCloseTo(oneKb!.data.visualLength * 2);
   });
 
-  it('node data includes length and coverage', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(elements.nodes[0].data['length']).toBe(100);
-    expect(elements.nodes[0].data['coverage']).toBe(5);
+  it('connects gfa-link edges to endpoint ids only', () => {
+    const elements = buildElements();
+    const link = elements.edges.find((edge) => edge.classes === 'gfa-link');
+    expect(link?.data.source).toBe('A::__right');
+    expect(link?.data.target).toBe('B::__right');
+    expect(String(link?.data.source)).toContain('::__');
+    expect(String(link?.data.target)).toContain('::__');
   });
 
-  it('node data includes visual width and height', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(typeof elements.nodes[0].data['width']).toBe('number');
-    expect(typeof elements.nodes[0].data['height']).toBe('number');
-    expect(elements.nodes[1].data['width']).toBeGreaterThan(elements.nodes[0].data['width']);
-    expect(elements.nodes[1].data['width']).toBeLessThanOrEqual(MAX_CONTIG_WIDTH);
+  it('does not use segment IDs directly for gfa-link edge endpoints', () => {
+    const elements = buildElements();
+    const link = elements.edges.find((edge) => edge.classes === 'gfa-link');
+    expect(link?.data.source).not.toBe('A');
+    expect(link?.data.target).not.toBe('B');
   });
 
-  it('uses minimum width when node length is unavailable', () => {
+  it('keeps source/target segments and link metadata for inspector use', () => {
+    const elements = buildElements();
+    const link = elements.edges.find((edge) => edge.classes === 'gfa-link');
+
+    expect(link?.data.sourceSegment).toBe('A');
+    expect(link?.data.targetSegment).toBe('B');
+    expect(link?.data.sourceOrient).toBe('+');
+    expect(link?.data.targetOrient).toBe('-');
+    expect(link?.data.overlap).toBe('100M');
+  });
+
+  it('uses default contig color when coverage coloring is disabled', () => {
+    const elements = buildElements({ colorByCoverage: false, themeMode: 'light' });
+    const body = elements.edges.find((edge) => edge.classes === 'contig-body');
+    expect(body?.data.color).toBe('#2563eb');
+  });
+
+  it('uses coverage color map when enabled and neutral fallback for missing coverage', () => {
     const graph: AssemblyGraph = {
       ...sampleGraph,
-      nodes: [{ id: 'unknown', label: 'unknown', tags: {} }],
-      edges: [],
-      stats: { nodeCount: 1, edgeCount: 0, totalLength: 0 },
+      nodes: [
+        ...sampleGraph.nodes,
+        { id: 'C', label: 'C', length: 500, coverage: undefined, tags: {}, degree: 0 },
+      ],
+      stats: { nodeCount: 3, edgeCount: 1, totalLength: 3500 },
     };
-    const elements = graphToCytoscape(graph);
-    expect(elements.nodes[0].data['width']).toBe(MIN_CONTIG_WIDTH);
-  });
 
-  it('edge data includes source and target', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(elements.edges[0].data.source).toBe('a');
-    expect(elements.edges[0].data.target).toBe('b');
-  });
+    const elements = graphToCytoscape(graph, {
+      colorByCoverage: true,
+      themeMode: 'light',
+      lengthScale: testLengthScale,
+    });
 
-  it('edge data includes orientation and overlap', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(elements.edges[0].data['sourceOrient']).toBe('+');
-    expect(elements.edges[0].data['targetOrient']).toBe('+');
-    expect(elements.edges[0].data['overlap']).toBe('10M');
+    const aBody = elements.edges.find(
+      (edge) => edge.classes === 'contig-body' && edge.data.segmentId === 'A',
+    );
+    const cBody = elements.edges.find(
+      (edge) => edge.classes === 'contig-body' && edge.data.segmentId === 'C',
+    );
+
+    expect(String(aBody?.data.color)).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
+    expect(cBody?.data.color).toBe('#94a3b8');
   });
 
   it('handles empty graph', () => {
@@ -85,101 +157,9 @@ describe('graphToCytoscape', () => {
       warnings: [],
       stats: { nodeCount: 0, edgeCount: 0, totalLength: 0 },
     };
+
     const elements = graphToCytoscape(empty);
     expect(elements.nodes).toHaveLength(0);
     expect(elements.edges).toHaveLength(0);
-  });
-});
-
-// ── regression: label must reflect real segment ID ───────────────────────────
-
-describe('graphToCytoscape – regression: no hardcoded labels', () => {
-  it('node label equals the real segment ID', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(elements.nodes[0].data['label']).toBe('a');
-    expect(elements.nodes[1].data['label']).toBe('b');
-  });
-
-  it('no node label is the generic string "Node"', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    const labels = elements.nodes.map((n) => n.data['label']);
-    expect(labels).not.toContain('Node');
-  });
-});
-
-// ── regression: longer contigs get wider nodes ────────────────────────────────
-
-describe('graphToCytoscape – regression: width scales with length', () => {
-  it('longer node is visually wider', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    // node a has length 100, node b has length 200
-    expect(elements.nodes[1].data['width']).toBeGreaterThan(
-      elements.nodes[0].data['width'],
-    );
-  });
-});
-
-// ── tags preserved in node data ───────────────────────────────────────────────
-
-describe('graphToCytoscape – tags in node data', () => {
-  it('node data includes the tags object', () => {
-    const graphWithTags: AssemblyGraph = {
-      nodes: [{ id: 'x', label: 'x', length: 50, tags: { LN: '50', DP: '3.2' } }],
-      edges: [],
-      warnings: [],
-      stats: { nodeCount: 1, edgeCount: 0, totalLength: 50 },
-    };
-    const elements = graphToCytoscape(graphWithTags);
-    const tags = elements.nodes[0].data['tags'] as Record<string, string>;
-    expect(tags['LN']).toBe('50');
-    expect(tags['DP']).toBe('3.2');
-  });
-});
-
-// ── edge data completeness ────────────────────────────────────────────────────
-
-describe('graphToCytoscape – edge data completeness', () => {
-  it('edge data has id, source, target, sourceOrient, targetOrient, overlap', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    const edge = elements.edges[0].data;
-    expect(edge.id).toBe('a-b');
-    expect(edge.source).toBe('a');
-    expect(edge.target).toBe('b');
-    expect(edge['sourceOrient']).toBe('+');
-    expect(edge['targetOrient']).toBe('+');
-    expect(edge['overlap']).toBe('10M');
-  });
-
-  it('edge data includes tags object', () => {
-    const elements = graphToCytoscape(sampleGraph);
-    expect(elements.edges[0].data['tags']).toBeDefined();
-  });
-});
-
-// ── self-loop edge ────────────────────────────────────────────────────────────
-
-describe('graphToCytoscape – self-loop', () => {
-  it('self-loop edge has same source and target', () => {
-    const selfLoopGraph: AssemblyGraph = {
-      nodes: [{ id: 'A', label: 'A', length: 8, tags: {} }],
-      edges: [
-        {
-          id: 'A-A',
-          source: 'A',
-          target: 'A',
-          sourceOrient: '+',
-          targetOrient: '-',
-          overlap: '4M',
-          tags: {},
-        },
-      ],
-      warnings: [],
-      stats: { nodeCount: 1, edgeCount: 1, totalLength: 8 },
-    };
-    const elements = graphToCytoscape(selfLoopGraph);
-    expect(elements.nodes).toHaveLength(1);
-    expect(elements.edges).toHaveLength(1);
-    expect(elements.edges[0].data.source).toBe('A');
-    expect(elements.edges[0].data.target).toBe('A');
   });
 });

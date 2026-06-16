@@ -1,13 +1,26 @@
 import type { LayoutName } from '../graph/layouts';
 import { LAYOUT_NAMES } from '../graph/layouts';
+import type { ThemeMode } from '../graph/coverageColors';
 
 interface ToolbarProps {
   layout: LayoutName;
   onLayoutChange: (layout: LayoutName) => void;
   onLoadExample: (example: string) => void;
+  themeMode: ThemeMode;
+  onThemeModeChange: (themeMode: ThemeMode) => void;
+  colorByCoverage: boolean;
+  onColorByCoverageChange: (enabled: boolean) => void;
 }
 
-export function Toolbar({ layout, onLayoutChange, onLoadExample }: ToolbarProps) {
+export function Toolbar({
+  layout,
+  onLayoutChange,
+  onLoadExample,
+  themeMode,
+  onThemeModeChange,
+  colorByCoverage,
+  onColorByCoverageChange,
+}: ToolbarProps) {
   return (
     <div className="toolbar" role="toolbar" aria-label="Graph tools">
       <span className="toolbar-label">Layout:</span>
@@ -22,6 +35,25 @@ export function Toolbar({ layout, onLayoutChange, onLoadExample }: ToolbarProps)
           </option>
         ))}
       </select>
+
+      <span className="toolbar-divider" aria-hidden="true" />
+
+      <span className="toolbar-label">Theme:</span>
+      <button
+        onClick={() => onThemeModeChange(themeMode === 'light' ? 'dark' : 'light')}
+        aria-label="Toggle theme mode"
+      >
+        {themeMode === 'light' ? 'Light' : 'Dark'}
+      </button>
+
+      <label className="toolbar-checkbox">
+        <input
+          type="checkbox"
+          checked={colorByCoverage}
+          onChange={(event) => onColorByCoverageChange(event.target.checked)}
+        />
+        Colour by coverage
+      </label>
 
       <span className="toolbar-divider" aria-hidden="true" />
 

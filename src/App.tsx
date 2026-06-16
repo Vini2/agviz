@@ -9,6 +9,7 @@ import { gfaToGraph } from './gfa/gfaToGraph';
 import type { AssemblyGraph } from './graph/graphTypes';
 import type { AssemblyNode, AssemblyEdge } from './graph/graphTypes';
 import type { LayoutName } from './graph/layouts';
+import type { ThemeMode } from './graph/coverageColors';
 import './App.css';
 
 type SelectedElement =
@@ -16,10 +17,27 @@ type SelectedElement =
   | { kind: 'edge'; data: AssemblyEdge }
   | null;
 
+const THEME_STORAGE_KEY = 'agviz:theme';
+
+function getInitialTheme(): ThemeMode {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === 'dark' || stored === 'light') {
+    return stored;
+  }
+
+  return 'light';
+}
+
 function App() {
   const [graph, setGraph] = useState<AssemblyGraph | null>(null);
   const [selected, setSelected] = useState<SelectedElement>(null);
   const [layout, setLayout] = useState<LayoutName>('fcose');
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => getInitialTheme());
+  const [colorByCoverage, setColorByCoverage] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string | undefined>();
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +71,13 @@ function App() {
     [loadGfa],
   );
 
+  const handleThemeModeChange = useCallback((next: ThemeMode) => {
+    setThemeMode(next);
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+  }, []);
+
   return (
-    <div className="app">
+    <div className="app" data-theme={themeMode}>
       <header className="app-header">
         <h1>
           <a className="app-title-link" href={import.meta.env.BASE_URL}>
@@ -69,6 +92,10 @@ function App() {
           layout={layout}
           onLayoutChange={setLayout}
           onLoadExample={loadExample}
+          themeMode={themeMode}
+          onThemeModeChange={handleThemeModeChange}
+          colorByCoverage={colorByCoverage}
+          onColorByCoverageChange={setColorByCoverage}
         />
       </div>
 
@@ -96,7 +123,13 @@ function App() {
       )}
 
       <div className="app-main">
-        <GraphViewer graph={graph} layout={layout} onSelect={setSelected} />
+        <GraphViewer
+          graph={graph}
+          layout={layout}
+          onSelect={setSelected}
+          themeMode={themeMode}
+          colorByCoverage={colorByCoverage}
+        />
         <InspectorPanel selected={selected} />
       </div>
 
