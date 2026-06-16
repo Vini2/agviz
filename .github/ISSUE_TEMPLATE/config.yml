@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: AgViz development brief
+    url: https://github.com/
+    about: Keep issues small, testable, and scoped to the AgViz MVP.
