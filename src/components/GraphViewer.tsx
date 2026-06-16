@@ -93,8 +93,12 @@ export function GraphViewer({ graph, layout, onSelect }: GraphViewerProps) {
         ? 'grid'
         : layout;
 
-    cy.layout(getLayoutOptions(effectiveLayout)).run();
-    cy.fit();
+    const layoutOptions = getLayoutOptions(effectiveLayout);
+    const layoutRun = cy.layout(layoutOptions);
+    cy.one('layoutstop', () => {
+      cy.fit(undefined, 40);
+    });
+    layoutRun.run();
   }, [graph, layout]);
 
   return (

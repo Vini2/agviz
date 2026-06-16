@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { gfaToGraph } from './gfaToGraph';
+import { gfaToGraph, estimateSegmentLength } from './gfaToGraph';
 import { parseGfa } from './parseGfa';
+import type { GfaSegment } from './gfaTypes';
 
 const TINY_GFA = `H\tVN:Z:1.0
 S\tcontig1\tACGTACGT\tLN:i:8\tDP:f:12.4
@@ -88,6 +89,41 @@ describe('gfaToGraph – star sequence with LN tag', () => {
   it('total length uses LN tags', () => {
     const graph = gfaToGraph(parseGfa(STAR_SEQ_GFA));
     expect(graph.stats.totalLength).toBe(2500);
+  });
+});
+
+describe('estimateSegmentLength', () => {
+  it('uses sequence length when sequence is present', () => {
+    const segment: GfaSegment = {
+      type: 'S',
+      name: 'contig1',
+      sequence: 'ACGTACGT',
+      rawLine: 'S\tcontig1\tACGTACGT\tLN:i:8',
+      tags: [{ name: 'LN', type: 'i', value: '8' }],
+    };
+    expect(estimateSegmentLength(segment)).toBe(8);
+  });
+
+  it('uses LN tag when sequence is *', () => {
+    const segment: GfaSegment = {
+      type: 'S',
+      name: 'contig2',
+      sequence: '*',
+      rawLine: 'S\tcontig2\t*\tLN:i:15000',
+      tags: [{ name: 'LN', type: 'i', value: '15000' }],
+    };
+    expect(estimateSegmentLength(segment)).toBe(15000);
+  });
+
+  it('returns undefined when no sequence or valid LN tag is available', () => {
+    const segment: GfaSegment = {
+      type: 'S',
+      name: 'contig3',
+      sequence: '*',
+      rawLine: 'S\tcontig3\t*\tLN:i:not-a-number',
+      tags: [{ name: 'LN', type: 'i', value: 'not-a-number' }],
+    };
+    expect(estimateSegmentLength(segment)).toBeUndefined();
   });
 });
 

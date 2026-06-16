@@ -10,14 +10,29 @@ export const LARGE_GRAPH_EDGE_THRESHOLD = 10000;
 export function getLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
   switch (name) {
     case 'fcose':
-      return { name: 'fcose', animate: false } as cytoscape.LayoutOptions;
+      return {
+        name: 'fcose',
+        animate: false,
+        fit: true,
+        padding: 40,
+        nodeDimensionsIncludeLabels: true,
+        idealEdgeLength: 40,
+        nodeRepulsion: 8000,
+        gravity: 0.25,
+        numIter: 2500,
+      } as cytoscape.LayoutOptions;
     case 'cose':
-      return { name: 'cose', animate: false } as cytoscape.LayoutOptions;
+      return { name: 'cose', animate: false, fit: true, padding: 40 } as cytoscape.LayoutOptions;
     case 'breadthfirst':
-      return { name: 'breadthfirst', animate: false } as cytoscape.LayoutOptions;
+      return {
+        name: 'breadthfirst',
+        animate: false,
+        fit: true,
+        padding: 40,
+      } as cytoscape.LayoutOptions;
     case 'circle':
-      return { name: 'circle', animate: false } as cytoscape.LayoutOptions;
+      return { name: 'circle', animate: false, fit: true, padding: 40 } as cytoscape.LayoutOptions;
     case 'grid':
-      return { name: 'grid', animate: false } as cytoscape.LayoutOptions;
+      return { name: 'grid', animate: false, fit: true, padding: 40 } as cytoscape.LayoutOptions;
   }
 }

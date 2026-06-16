@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { graphToCytoscape } from './cytoscapeElements';
 import type { AssemblyGraph } from './graphTypes';
+import { MIN_CONTIG_WIDTH } from './visualScale';
 
 const sampleGraph: AssemblyGraph = {
   nodes: [
@@ -45,10 +46,22 @@ describe('graphToCytoscape', () => {
     expect(elements.nodes[0].data['coverage']).toBe(5);
   });
 
-  it('node size is computed', () => {
+  it('node data includes visual width and height', () => {
     const elements = graphToCytoscape(sampleGraph);
-    expect(typeof elements.nodes[0].data['size']).toBe('number');
-    expect(elements.nodes[0].data['size']).toBeGreaterThan(0);
+    expect(typeof elements.nodes[0].data['width']).toBe('number');
+    expect(typeof elements.nodes[0].data['height']).toBe('number');
+    expect(elements.nodes[1].data['width']).toBeGreaterThan(elements.nodes[0].data['width']);
+  });
+
+  it('uses minimum width when node length is unavailable', () => {
+    const graph: AssemblyGraph = {
+      ...sampleGraph,
+      nodes: [{ id: 'unknown', label: 'unknown', tags: {} }],
+      edges: [],
+      stats: { nodeCount: 1, edgeCount: 0, totalLength: 0 },
+    };
+    const elements = graphToCytoscape(graph);
+    expect(elements.nodes[0].data['width']).toBe(MIN_CONTIG_WIDTH);
   });
 
   it('edge data includes source and target', () => {
