@@ -174,10 +174,25 @@ describe('deduplicateReciprocalLinks', () => {
   });
 
   it('deduplicates reciprocal self-loop duplicates', () => {
-    const groups = deduplicateReciprocalLinks([
-      buildEdge('L1', 'A', '+', 'A', '-', '100M'),
-      buildEdge('L2', 'A', '+', 'A', '-', '100M'),
-    ]);
+    const edgeOne = buildEdge('L1', 'A', '+', 'A', '-', '100M');
+    const edgeTwo = buildEdge('L2', 'A', '+', 'A', '-', '100M');
+    const keyOne = canonicalGfaLinkKey({
+      from: edgeOne.source,
+      fromOrient: edgeOne.sourceOrient!,
+      to: edgeOne.target,
+      toOrient: edgeOne.targetOrient!,
+      overlap: edgeOne.overlap,
+    });
+    const keyTwo = canonicalGfaLinkKey({
+      from: edgeTwo.source,
+      fromOrient: edgeTwo.sourceOrient!,
+      to: edgeTwo.target,
+      toOrient: edgeTwo.targetOrient!,
+      overlap: edgeTwo.overlap,
+    });
+    expect(keyOne).toBe(keyTwo);
+
+    const groups = deduplicateReciprocalLinks([edgeOne, edgeTwo]);
     expect(groups).toHaveLength(1);
     expect(groups[0].members).toHaveLength(2);
   });

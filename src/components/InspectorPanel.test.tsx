@@ -130,6 +130,7 @@ describe('InspectorPanel – edge selected', () => {
     const singleEdge: AssemblyEdge = { ...sampleEdge, reciprocalMemberCount: undefined, rawLinks: [] };
     render(<InspectorPanel selected={{ kind: 'edge', data: singleEdge }} />);
     expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /raw links/i })).not.toBeInTheDocument();
   });
 
   it('does not render raw links section when rawLinks is undefined', () => {
