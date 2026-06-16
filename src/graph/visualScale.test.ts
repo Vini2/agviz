@@ -57,11 +57,18 @@ describe('contigVisualWidth', () => {
     expect(Number.isFinite(contigVisualWidth())).toBe(true);
     expect(Number.isFinite(contigVisualWidth(10 ** 15))).toBe(true);
   });
+
+  it('always returns a finite positive width', () => {
+    expect(Number.isFinite(contigVisualWidth(-1))).toBe(true);
+    expect(contigVisualWidth(-1)).toBeGreaterThan(0);
+  });
 });
 
 describe('contigVisualHeight', () => {
-  it('returns a fixed selectable height', () => {
+  it('returns a fixed thin height', () => {
     expect(contigVisualHeight()).toBe(DEFAULT_CONTIG_HEIGHT);
+    expect(contigVisualHeight()).toBeLessThanOrEqual(12);
+    expect(contigVisualHeight()).toBeGreaterThan(0);
   });
 
   it('returns a positive height', () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { graphToCytoscape } from './cytoscapeElements';
 import type { AssemblyGraph } from './graphTypes';
-import { MIN_CONTIG_WIDTH } from './visualScale';
+import { MAX_CONTIG_WIDTH, MIN_CONTIG_WIDTH } from './visualScale';
 
 const sampleGraph: AssemblyGraph = {
   nodes: [
@@ -51,6 +51,7 @@ describe('graphToCytoscape', () => {
     expect(typeof elements.nodes[0].data['width']).toBe('number');
     expect(typeof elements.nodes[0].data['height']).toBe('number');
     expect(elements.nodes[1].data['width']).toBeGreaterThan(elements.nodes[0].data['width']);
+    expect(elements.nodes[1].data['width']).toBeLessThanOrEqual(MAX_CONTIG_WIDTH);
   });
 
   it('uses minimum width when node length is unavailable', () => {
@@ -73,6 +74,7 @@ describe('graphToCytoscape', () => {
   it('edge data includes orientation and overlap', () => {
     const elements = graphToCytoscape(sampleGraph);
     expect(elements.edges[0].data['sourceOrient']).toBe('+');
+    expect(elements.edges[0].data['targetOrient']).toBe('+');
     expect(elements.edges[0].data['overlap']).toBe('10M');
   });
 
