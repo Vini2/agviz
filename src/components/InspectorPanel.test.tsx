@@ -83,7 +83,7 @@ describe('InspectorPanel – node selected', () => {
 describe('InspectorPanel – edge selected', () => {
   it('shows the link heading', () => {
     render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
-    expect(screen.getByText(/link/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /link: contig1-contig2/i })).toBeInTheDocument();
   });
 
   it('shows source and target IDs', () => {
@@ -115,8 +115,8 @@ describe('InspectorPanel – edge selected', () => {
 
   it('shows raw links when available', () => {
     render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
-    expect(screen.getByText('L\tcontig1\t+\tcontig2\t-\t4M')).toBeInTheDocument();
-    expect(screen.getByText('L\tcontig2\t+\tcontig1\t-\t4M')).toBeInTheDocument();
+    expect(screen.getByText(/L\s+contig1\s+\+\s+contig2\s+-\s+4M/)).toBeInTheDocument();
+    expect(screen.getByText(/L\s+contig2\s+\+\s+contig1\s+-\s+4M/)).toBeInTheDocument();
   });
 
   it('defaults represented count to 1 when metadata is absent', () => {
