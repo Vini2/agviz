@@ -1,10 +1,8 @@
-export const MIN_CONTIG_WIDTH = 36;
-export const MAX_CONTIG_WIDTH = 260;
-export const DEFAULT_CONTIG_HEIGHT = 22;
-// Offset keeps short contigs comfortably selectable before log scaling takes over.
-const CONTIG_WIDTH_BASE_OFFSET = 24;
-// Multiplier spreads typical assembly lengths apart without letting long contigs dominate the canvas.
-const CONTIG_WIDTH_LOG_MULTIPLIER = 42;
+export const MIN_CONTIG_WIDTH = 20;
+export const MAX_CONTIG_WIDTH = 140;
+export const DEFAULT_CONTIG_HEIGHT = 10;
+const CONTIG_WIDTH_BASE_OFFSET = 16;
+const CONTIG_WIDTH_LOG_MULTIPLIER = 24;
 
 export function contigVisualWidth(length?: number): number {
   if (!length || length <= 0) {
