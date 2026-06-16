@@ -1,7 +1,7 @@
-HVN:Z:1.0
-SA*LN:i:1000
-SB*LN:i:1000
-LA+B+100M
-LA+B-100M
-LA-B+100M
-LA-B-100M
+H	VN:Z:1.0
+S	A	*	LN:i:1000
+S	B	*	LN:i:1000
+L	A	+	B	+	100M
+L	A	+	B	-	100M
+L	A	-	B	+	100M
+L	A	-	B	-	100M

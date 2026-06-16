@@ -1,8 +1,8 @@
-HVN:Z:1.0
-Slow*LN:i:1000DP:f:5
-Smid*LN:i:1000DP:f:20
-Shigh*LN:i:1000DP:f:80
-Smissing*LN:i:1000
-Llow+mid+100M
-Lmid+high+100M
-Lhigh+missing+100M
+H	VN:Z:1.0
+S	low	*	LN:i:1000	DP:f:5
+S	mid	*	LN:i:1000	DP:f:20
+S	high	*	LN:i:1000	DP:f:80
+S	missing	*	LN:i:1000
+L	low	+	mid	+	100M
+L	mid	+	high	+	100M
+L	high	+	missing	+	100M

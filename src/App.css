@@ -181,7 +181,7 @@ body {
 .app-error {
   margin: 0.5rem 1rem;
   padding: 0.5rem 0.75rem;
-  background: color-mix(in oklab, var(--color-error) 15%, transparent);
+  background: rgba(220, 38, 38, 0.12);
   border: 1px solid var(--color-error);
   border-radius: var(--radius);
   font-size: 0.85rem;
