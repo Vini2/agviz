@@ -27,13 +27,37 @@ export function canonicalGfaLinkKey(link: LinkKeyInput): string {
   return forward < reciprocal ? forward : reciprocal;
 }
 
+function edgeSignature(
+  source: string,
+  sourceOrient: string | undefined,
+  target: string,
+  targetOrient: string | undefined,
+  overlap: string | undefined,
+): string {
+  return `${source}${sourceOrient ?? '?'}|${target}${targetOrient ?? '?'}|${overlap ?? ''}`;
+}
+
+function reciprocalEdgeSignature(edge: AssemblyEdge): string | null {
+  if (!edge.sourceOrient || !edge.targetOrient) {
+    return null;
+  }
+
+  return edgeSignature(
+    edge.target,
+    flipOrient(edge.targetOrient),
+    edge.source,
+    flipOrient(edge.sourceOrient),
+    edge.overlap,
+  );
+}
+
 export function deduplicateReciprocalLinks(edges: AssemblyEdge[]): DeduplicatedLink[] {
   const output: DeduplicatedLink[] = [];
   const byKey = new Map<string, AssemblyEdge[]>();
 
   for (const edge of edges) {
     if (!edge.sourceOrient || !edge.targetOrient) {
-      const fallbackKey = `${edge.source}${edge.sourceOrient ?? '?'}|${edge.target}${edge.targetOrient ?? '?'}|${edge.overlap ?? ''}|${edge.id}`;
+      const fallbackKey = `${edgeSignature(edge.source, edge.sourceOrient, edge.target, edge.targetOrient, edge.overlap)}|${edge.id}`;
       output.push({
         canonicalKey: fallbackKey,
         representative: edge,
@@ -58,15 +82,30 @@ export function deduplicateReciprocalLinks(edges: AssemblyEdge[]): DeduplicatedL
     const signatureMap = new Map<string, AssemblyEdge[]>();
 
     for (const edge of members) {
-      const signature = `${edge.source}${edge.sourceOrient}|${edge.target}${edge.targetOrient}|${edge.overlap ?? ''}`;
+      const signature = edgeSignature(
+        edge.source,
+        edge.sourceOrient,
+        edge.target,
+        edge.targetOrient,
+        edge.overlap,
+      );
       const list = signatureMap.get(signature) ?? [];
       list.push(edge);
       signatureMap.set(signature, list);
     }
 
     const shouldCollapse = members.some((edge) => {
-      const reciprocalSignature = `${edge.target}${flipOrient(edge.targetOrient!)}|${edge.source}${flipOrient(edge.sourceOrient!)}|${edge.overlap ?? ''}`;
-      const ownSignature = `${edge.source}${edge.sourceOrient}|${edge.target}${edge.targetOrient}|${edge.overlap ?? ''}`;
+      const reciprocalSignature = reciprocalEdgeSignature(edge);
+      if (!reciprocalSignature) {
+        return false;
+      }
+      const ownSignature = edgeSignature(
+        edge.source,
+        edge.sourceOrient,
+        edge.target,
+        edge.targetOrient,
+        edge.overlap,
+      );
       return reciprocalSignature === ownSignature || signatureMap.has(reciprocalSignature);
     });
 

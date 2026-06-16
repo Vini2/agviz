@@ -114,9 +114,16 @@ describe('InspectorPanel – edge selected', () => {
   });
 
   it('shows raw links when available', () => {
-    render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
-    expect(screen.getByText(/L\s+contig1\s+\+\s+contig2\s+-\s+4M/)).toBeInTheDocument();
-    expect(screen.getByText(/L\s+contig2\s+\+\s+contig1\s+-\s+4M/)).toBeInTheDocument();
+    const { container } = render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
+    const rawLines = Array.from(container.querySelectorAll('code')).map((node) =>
+      (node.textContent ?? '').trim(),
+    );
+    expect(rawLines).toEqual(
+      expect.arrayContaining([
+        'L\tcontig1\t+\tcontig2\t-\t4M',
+        'L\tcontig2\t+\tcontig1\t-\t4M',
+      ]),
+    );
   });
 
   it('defaults represented count to 1 when metadata is absent', () => {
