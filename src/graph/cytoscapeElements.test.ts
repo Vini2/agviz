@@ -115,6 +115,118 @@ describe('graphToCytoscape', () => {
     expect(link?.data.sourceOrient).toBe('+');
     expect(link?.data.targetOrient).toBe('-');
     expect(link?.data.overlap).toBe('100M');
+    expect(link?.data.reciprocalMemberCount).toBe(1);
+  });
+
+  it('deduplicates reciprocal links into one visible gfa-link edge', () => {
+    const reciprocalGraph: AssemblyGraph = {
+      nodes: [
+        { id: 'A', label: 'A', length: 1000, tags: {} },
+        { id: 'B', label: 'B', length: 1000, tags: {} },
+      ],
+      edges: [
+        {
+          id: 'A-B',
+          source: 'A',
+          target: 'B',
+          sourceOrient: '+',
+          targetOrient: '+',
+          overlap: '100M',
+          tags: {},
+          raw: 'L\tA\t+\tB\t+\t100M',
+        },
+        {
+          id: 'B-A',
+          source: 'B',
+          target: 'A',
+          sourceOrient: '-',
+          targetOrient: '-',
+          overlap: '100M',
+          tags: {},
+          raw: 'L\tB\t-\tA\t-\t100M',
+        },
+      ],
+      warnings: [],
+      stats: { nodeCount: 2, edgeCount: 2, totalLength: 2000 },
+    };
+
+    const elements = graphToCytoscape(reciprocalGraph, { lengthScale: testLengthScale });
+    const links = elements.edges.filter((edge) => edge.classes === 'gfa-link');
+
+    expect(links).toHaveLength(1);
+    expect(links[0].data.source).toBe('A::__right');
+    expect(links[0].data.target).toBe('B::__left');
+    expect(links[0].data.reciprocalMemberCount).toBe(2);
+    expect(links[0].data.reciprocalMembers).toEqual(['A-B', 'B-A']);
+    expect(links[0].data.rawLinks).toEqual(['L\tA\t+\tB\t+\t100M', 'L\tB\t-\tA\t-\t100M']);
+  });
+
+  it('keeps distinct parallel links when orientations differ', () => {
+    const parallelGraph: AssemblyGraph = {
+      nodes: [
+        { id: 'A', label: 'A', length: 1000, tags: {} },
+        { id: 'B', label: 'B', length: 1000, tags: {} },
+      ],
+      edges: [
+        {
+          id: 'A-B-pp',
+          source: 'A',
+          target: 'B',
+          sourceOrient: '+',
+          targetOrient: '+',
+          overlap: '100M',
+          tags: {},
+        },
+        {
+          id: 'A-B-pm',
+          source: 'A',
+          target: 'B',
+          sourceOrient: '+',
+          targetOrient: '-',
+          overlap: '100M',
+          tags: {},
+        },
+      ],
+      warnings: [],
+      stats: { nodeCount: 2, edgeCount: 2, totalLength: 2000 },
+    };
+
+    const elements = graphToCytoscape(parallelGraph, { lengthScale: testLengthScale });
+    const links = elements.edges.filter((edge) => edge.classes === 'gfa-link');
+    expect(links).toHaveLength(2);
+  });
+
+  it('deduplicates reciprocal self-loop duplicates', () => {
+    const selfLoopGraph: AssemblyGraph = {
+      nodes: [{ id: 'A', label: 'A', length: 1000, tags: {} }],
+      edges: [
+        {
+          id: 'loop1',
+          source: 'A',
+          target: 'A',
+          sourceOrient: '+',
+          targetOrient: '-',
+          overlap: '100M',
+          tags: {},
+        },
+        {
+          id: 'loop2',
+          source: 'A',
+          target: 'A',
+          sourceOrient: '+',
+          targetOrient: '-',
+          overlap: '100M',
+          tags: {},
+        },
+      ],
+      warnings: [],
+      stats: { nodeCount: 1, edgeCount: 2, totalLength: 1000 },
+    };
+
+    const elements = graphToCytoscape(selfLoopGraph, { lengthScale: testLengthScale });
+    const links = elements.edges.filter((edge) => edge.classes === 'gfa-link');
+    expect(links).toHaveLength(1);
+    expect(links[0].data.reciprocalMemberCount).toBe(2);
   });
 
   it('uses default contig color when coverage coloring is disabled', () => {

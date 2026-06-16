@@ -71,6 +71,11 @@ describe('gfaToGraph – tiny GFA', () => {
     expect(graph.edges[0].overlap).toBe('4M');
   });
 
+  it('edge preserves raw link line', () => {
+    const graph = gfaToGraph(parseGfa(TINY_GFA));
+    expect(graph.edges[0].raw).toBe('L\tcontig1\t+\tcontig2\t-\t4M');
+  });
+
   it('stats are correct', () => {
     const graph = gfaToGraph(parseGfa(TINY_GFA));
     expect(graph.stats.nodeCount).toBe(2);

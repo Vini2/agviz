@@ -1,0 +1,8 @@
+H	VN:Z:1.0
+S	A	*	LN:i:1000
+S	B	*	LN:i:1000
+S	C	*	LN:i:1000
+L	A	+	B	+	100M
+L	B	-	A	-	100M
+L	B	+	C	+	100M
+L	C	-	B	-	100M

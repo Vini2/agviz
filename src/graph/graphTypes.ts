@@ -16,6 +16,10 @@ export interface AssemblyEdge {
   targetOrient?: '+' | '-';
   overlap?: string;
   tags: Record<string, string>;
+  raw?: string;
+  reciprocalMemberCount?: number;
+  reciprocalMembers?: string[];
+  rawLinks?: string[];
 }
 
 export interface AssemblyGraphStats {

@@ -12,6 +12,7 @@ import {
   defaultContigColor,
   type ThemeMode,
 } from './coverageColors';
+import { deduplicateReciprocalLinks } from './linkDeduplication';
 
 export interface CytoscapeElements {
   nodes: cytoscape.NodeDefinition[];
@@ -109,22 +110,32 @@ export function graphToCytoscape(
     };
   });
 
-  const linkEdges: cytoscape.EdgeDefinition[] = graph.edges.map((edge, index) => {
-    const mapped = mapLinkEndpoints(edge.source, edge.sourceOrient, edge.target, edge.targetOrient);
+  const deduplicatedLinks = deduplicateReciprocalLinks(graph.edges);
+  const linkEdges: cytoscape.EdgeDefinition[] = deduplicatedLinks.map((group, index) => {
+    const representative = group.representative;
+    const mapped = mapLinkEndpoints(
+      representative.source,
+      representative.sourceOrient,
+      representative.target,
+      representative.targetOrient,
+    );
 
     return {
       data: {
-        id: `link::${edge.id}::${index}`,
+        id: `link::${group.canonicalKey}::${index}`,
         source: mapped.sourceEndpointId,
         target: mapped.targetEndpointId,
         kind: 'gfa-link',
-        originalEdgeId: edge.id,
-        sourceSegment: edge.source,
-        targetSegment: edge.target,
-        sourceOrient: edge.sourceOrient,
-        targetOrient: edge.targetOrient,
-        overlap: edge.overlap,
-        tags: edge.tags,
+        originalEdgeId: representative.id,
+        sourceSegment: representative.source,
+        targetSegment: representative.target,
+        sourceOrient: representative.sourceOrient,
+        targetOrient: representative.targetOrient,
+        overlap: representative.overlap,
+        tags: representative.tags,
+        reciprocalMemberCount: group.members.length,
+        reciprocalMembers: group.members.map((edge) => edge.id),
+        rawLinks: group.members.map((edge) => edge.raw).filter(Boolean),
       },
       classes: 'gfa-link',
     };

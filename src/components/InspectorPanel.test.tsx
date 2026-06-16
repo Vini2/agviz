@@ -21,6 +21,8 @@ const sampleEdge: AssemblyEdge = {
   targetOrient: '-',
   overlap: '4M',
   tags: {},
+  reciprocalMemberCount: 2,
+  rawLinks: ['L\tcontig1\t+\tcontig2\t-\t4M', 'L\tcontig2\t+\tcontig1\t-\t4M'],
 };
 
 describe('InspectorPanel – empty selection', () => {
@@ -103,6 +105,24 @@ describe('InspectorPanel – edge selected', () => {
   it('shows overlap / CIGAR', () => {
     render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
     expect(screen.getByText('4M')).toBeInTheDocument();
+  });
+
+  it('shows represented GFA link record count', () => {
+    render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText(/gfa link records represented/i)).toBeInTheDocument();
+  });
+
+  it('shows raw links when available', () => {
+    render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
+    expect(screen.getByText('L\tcontig1\t+\tcontig2\t-\t4M')).toBeInTheDocument();
+    expect(screen.getByText('L\tcontig2\t+\tcontig1\t-\t4M')).toBeInTheDocument();
+  });
+
+  it('defaults represented count to 1 when metadata is absent', () => {
+    const singleEdge: AssemblyEdge = { ...sampleEdge, reciprocalMemberCount: undefined, rawLinks: [] };
+    render(<InspectorPanel selected={{ kind: 'edge', data: singleEdge }} />);
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 });
 

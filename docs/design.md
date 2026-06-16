@@ -6,7 +6,8 @@ AgViz now renders each biological segment with endpoint-aware Cytoscape elements
 
 - two render-only endpoint nodes per segment (`segment::__left` and `segment::__right`);
 - one `contig-body` edge between those endpoints;
-- `gfa-link` edges between endpoints based on GFA orientation.
+- `gfa-link` edges between endpoints based on GFA orientation;
+- reciprocal reverse-complement GFA links are collapsed to one visible connection in the default view, while represented member records are preserved as edge metadata.
 
 This keeps the biological model in `AssemblyGraph` while ensuring links attach to distal segment ends.
 

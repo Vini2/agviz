@@ -93,7 +93,21 @@ function EdgeInspector({ edge }: { edge: AssemblyEdge }) {
             <dd>{edge.overlap}</dd>
           </>
         )}
+        <dt>GFA link records represented</dt>
+        <dd>{edge.reciprocalMemberCount ?? 1}</dd>
       </dl>
+      {edge.rawLinks && edge.rawLinks.length > 0 && (
+        <>
+          <h4>Raw links</h4>
+          <ul className="inspector-raw-links">
+            {edge.rawLinks.map((raw, index) => (
+              <li key={`${edge.id}-raw-${index}`}>
+                <code>{raw}</code>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <h4>Tags</h4>
       <TagTable tags={edge.tags} />
     </div>
