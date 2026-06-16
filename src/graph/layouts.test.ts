@@ -8,14 +8,14 @@ describe('layouts', () => {
   });
 
   it('uses compact fcose settings for curved graph flow', () => {
-    const options = getLayoutOptions('fcose') as Record<string, unknown>;
+    const options = getLayoutOptions('fcose') as unknown as Record<string, unknown>;
     expect(options.name).toBe('fcose');
     expect(Number(options.idealEdgeLength)).toBeLessThanOrEqual(30);
     expect(options.nodeDimensionsIncludeLabels).toBe(false);
   });
 
   it('configures concentric layout', () => {
-    const options = getLayoutOptions('concentric') as Record<string, unknown>;
+    const options = getLayoutOptions('concentric') as unknown as Record<string, unknown>;
     expect(options.name).toBe('concentric');
     expect(options.nodeDimensionsIncludeLabels).toBe(false);
     expect(typeof options.concentric).toBe('function');
