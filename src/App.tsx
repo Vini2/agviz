@@ -56,7 +56,11 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>AgViz</h1>
+        <h1>
+          <a className="app-title-link" href={import.meta.env.BASE_URL}>
+            AgViz
+          </a>
+        </h1>
         <span className="app-subtitle">Assembly Graph Visualisation</span>
       </header>
 
