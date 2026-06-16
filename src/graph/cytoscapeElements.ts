@@ -18,7 +18,7 @@ export function graphToCytoscape(graph: AssemblyGraph): CytoscapeElements {
       degree: node.degree,
       tags: node.tags,
       width: contigVisualWidth(node.length),
-      height: contigVisualHeight(node.length),
+      height: contigVisualHeight(),
     },
   }));
 

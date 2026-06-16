@@ -125,6 +125,17 @@ describe('estimateSegmentLength', () => {
     };
     expect(estimateSegmentLength(segment)).toBeUndefined();
   });
+
+  it('returns undefined for non-positive LN values', () => {
+    const segment: GfaSegment = {
+      type: 'S',
+      name: 'contig4',
+      sequence: '*',
+      rawLine: 'S\tcontig4\t*\tLN:i:0',
+      tags: [{ name: 'LN', type: 'i', value: '0' }],
+    };
+    expect(estimateSegmentLength(segment)).toBeUndefined();
+  });
 });
 
 describe('gfaToGraph – coverage tag priority', () => {

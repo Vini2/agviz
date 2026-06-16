@@ -20,7 +20,7 @@ export function estimateSegmentLength(segment: GfaSegment): number | undefined {
   const ln = segment.tags.find((tag) => tag.name === 'LN');
   if (ln) {
     const parsed = Number.parseInt(ln.value, 10);
-    if (Number.isFinite(parsed) && parsed >= 0) {
+    if (Number.isFinite(parsed) && parsed > 0) {
       return parsed;
     }
   }
