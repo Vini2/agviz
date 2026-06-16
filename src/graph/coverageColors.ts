@@ -12,7 +12,7 @@ const darkPalette = {
   neutral: '#64748b',
 };
 
-function clamp01(value: number): number {
+function clampToUnitInterval(value: number): number {
   if (!Number.isFinite(value)) {
     return 0;
   }
@@ -51,7 +51,7 @@ export function coverageToColor(
     return mixRgb(palette.low, palette.high, 0.5);
   }
 
-  const ratio = clamp01((coverage - minCoverage) / (maxCoverage - minCoverage));
+  const ratio = clampToUnitInterval((coverage - minCoverage) / (maxCoverage - minCoverage));
   return mixRgb(palette.low, palette.high, ratio);
 }
 

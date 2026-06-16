@@ -25,9 +25,10 @@ export interface CytoscapeGraphOptions {
 }
 
 export type EndpointSide = 'left' | 'right';
+const ENDPOINT_DELIMITER = '::__';
 
 export function endpointId(segmentId: string, side: EndpointSide): string {
-  return `${segmentId}::__${side}`;
+  return `${segmentId}${ENDPOINT_DELIMITER}${side}`;
 }
 
 function sourceSideFromOrientation(sourceOrient: '+' | '-' | undefined): EndpointSide {
