@@ -1,20 +1,25 @@
 import type cytoscape from 'cytoscape';
+import type { AssemblyGraph } from './graphTypes';
 
-export type LayoutName = 'fcose' | 'cose' | 'breadthfirst' | 'circle' | 'grid';
+export type LayoutName = 'fcose' | 'cose' | 'circle' | 'concentric' | 'grid';
 
-export const LAYOUT_NAMES: LayoutName[] = ['fcose', 'cose', 'breadthfirst', 'circle', 'grid'];
+export const LAYOUT_NAMES: LayoutName[] = ['fcose', 'circle', 'concentric', 'cose', 'grid'];
 
 export const LARGE_GRAPH_NODE_THRESHOLD = 5000;
 export const LARGE_GRAPH_EDGE_THRESHOLD = 10000;
-const DEFAULT_LAYOUT_PADDING = 40;
-// Keep contig bars close enough to read as adjacencies while leaving room for labels and rounded rectangles.
-const FCOSE_IDEAL_EDGE_LENGTH = 40;
-// Higher repulsion prevents the wider contig nodes from overlapping in compact graphs.
-const CONTIG_FCOSE_NODE_REPULSION = 8000;
-// Light gravity helps connected components settle without stretching links into long spokes.
-const CONTIG_FCOSE_GRAVITY = 0.25;
-// Extra iterations help fcose converge after accounting for label-aware rectangular node dimensions.
+const DEFAULT_LAYOUT_PADDING = 35;
+const FCOSE_IDEAL_EDGE_LENGTH = 24;
+const CONTIG_FCOSE_NODE_REPULSION = 4500;
+const CONTIG_FCOSE_GRAVITY = 0.45;
 const CONTIG_FCOSE_NUM_ITERATIONS = 2500;
+
+export function chooseDefaultLayout(graph: AssemblyGraph): LayoutName {
+  if (graph.nodes.length <= 12 && graph.edges.length >= graph.nodes.length) {
+    return 'circle';
+  }
+
+  return 'fcose';
+}
 
 export function getLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
   switch (name) {
@@ -24,11 +29,14 @@ export function getLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
         animate: false,
         fit: true,
         padding: DEFAULT_LAYOUT_PADDING,
-        nodeDimensionsIncludeLabels: true,
+        nodeDimensionsIncludeLabels: false,
         idealEdgeLength: FCOSE_IDEAL_EDGE_LENGTH,
         nodeRepulsion: CONTIG_FCOSE_NODE_REPULSION,
         gravity: CONTIG_FCOSE_GRAVITY,
+        gravityRangeCompound: 1.5,
+        gravityCompound: 1.0,
         numIter: CONTIG_FCOSE_NUM_ITERATIONS,
+        randomize: true,
       } as cytoscape.LayoutOptions;
     case 'cose':
       return {
@@ -36,13 +44,7 @@ export function getLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
         animate: false,
         fit: true,
         padding: DEFAULT_LAYOUT_PADDING,
-      } as cytoscape.LayoutOptions;
-    case 'breadthfirst':
-      return {
-        name: 'breadthfirst',
-        animate: false,
-        fit: true,
-        padding: DEFAULT_LAYOUT_PADDING,
+        nodeDimensionsIncludeLabels: false,
       } as cytoscape.LayoutOptions;
     case 'circle':
       return {
@@ -50,6 +52,19 @@ export function getLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
         animate: false,
         fit: true,
         padding: DEFAULT_LAYOUT_PADDING,
+        avoidOverlap: true,
+        nodeDimensionsIncludeLabels: false,
+      } as cytoscape.LayoutOptions;
+    case 'concentric':
+      return {
+        name: 'concentric',
+        animate: false,
+        fit: true,
+        padding: DEFAULT_LAYOUT_PADDING,
+        avoidOverlap: true,
+        nodeDimensionsIncludeLabels: false,
+        concentric: (node: cytoscape.NodeSingular) => node.degree(),
+        levelWidth: () => 2,
       } as cytoscape.LayoutOptions;
     case 'grid':
       return {

@@ -20,10 +20,17 @@ describe('contigVisualWidth', () => {
   it('never exceeds the maximum width cap', () => {
     expect(contigVisualWidth(10 ** 12)).toBe(MAX_CONTIG_WIDTH);
   });
+
+  it('always returns a finite positive width', () => {
+    expect(Number.isFinite(contigVisualWidth(-1))).toBe(true);
+    expect(contigVisualWidth(-1)).toBeGreaterThan(0);
+  });
 });
 
 describe('contigVisualHeight', () => {
-  it('returns a fixed selectable height', () => {
+  it('returns a fixed thin height', () => {
     expect(contigVisualHeight()).toBe(DEFAULT_CONTIG_HEIGHT);
+    expect(contigVisualHeight()).toBeLessThanOrEqual(12);
+    expect(contigVisualHeight()).toBeGreaterThan(0);
   });
 });

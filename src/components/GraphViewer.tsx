@@ -6,6 +6,7 @@ import type { AssemblyNode, AssemblyEdge } from '../graph/graphTypes';
 import { graphToCytoscape } from '../graph/cytoscapeElements';
 import { defaultStylesheet } from '../graph/styles';
 import {
+  chooseDefaultLayout,
   getLayoutOptions,
   LARGE_GRAPH_NODE_THRESHOLD,
   LARGE_GRAPH_EDGE_THRESHOLD,
@@ -87,11 +88,12 @@ export function GraphViewer({ graph, layout, onSelect }: GraphViewerProps) {
     const elements = graphToCytoscape(graph);
     cy.add([...elements.nodes, ...elements.edges]);
 
+    const defaultedLayout = layout === 'fcose' ? chooseDefaultLayout(graph) : layout;
     const effectiveLayout =
       graph.stats.nodeCount > LARGE_GRAPH_NODE_THRESHOLD ||
       graph.stats.edgeCount > LARGE_GRAPH_EDGE_THRESHOLD
         ? 'grid'
-        : layout;
+        : defaultedLayout;
 
     const layoutOptions = getLayoutOptions(effectiveLayout);
     const layoutRun = cy.layout(layoutOptions);
