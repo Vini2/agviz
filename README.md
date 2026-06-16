@@ -1,32 +1,71 @@
-# AgViz AI starter files
+# AgViz
 
-This bundle contains repository-native instruction files for starting **AgViz** with bugbait / GitHub Copilot coding agent.
+**Assembly Graph Visualisation** — a browser-native tool for visualising genome assembly graphs from GFA files.
 
-Copy these files into the root of the new `agviz` repository.
+## Quick start
 
-## Included files
-
-```text
-.github/copilot-instructions.md
-.github/instructions/gfa.instructions.md
-.github/instructions/frontend.instructions.md
-.github/ISSUE_TEMPLATE/config.yml
-.github/ISSUE_TEMPLATE/feature_task.md
-.github/workflows/ci.yml
-AGENTS.md
-AGVIZ_BOOTSTRAP_PROMPT.md
-docs/roadmap.md
-public/examples/tiny.gfa
-public/examples/simple_cycle.gfa
-public/examples/branching_graph.gfa
+```bash
+npm install
+npm run dev
 ```
 
-## Suggested next step
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-After copying these files into the repository, assign bugbait / Copilot coding agent the task in:
+## Commands
 
-```text
-AGVIZ_BOOTSTRAP_PROMPT.md
+| Command | Description |
+|---------|-------------|
+| `npm install` | Install dependencies |
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm test` | Run unit tests |
+| `npm run preview` | Preview production build |
+
+## Usage
+
+1. Open the app in your browser.
+2. Upload a `.gfa` file using the file picker or drag-and-drop, **or** click one of the example buttons in the toolbar.
+3. The assembly graph renders with segments as nodes and links as edges.
+4. Click a node to see its metadata (ID, length, coverage, sequence, tags) in the inspector panel.
+5. Click an edge to see link metadata (source, target, orientations, overlap, tags).
+6. Use the layout selector to switch between `fcose`, `cose`, `breadthfirst`, `circle`, and `grid` layouts.
+
+## Example files
+
+Three example GFA files are included under `public/examples/`:
+
+- `tiny.gfa` — two segments connected by one link (good first test)
+- `simple_cycle.gfa` — three segments forming a cycle
+- `branching_graph.gfa` — a root node with two branches converging on a tip
+
+## GFA support
+
+The MVP supports GFA 1 records:
+
+| Record | Support |
+|--------|---------|
+| `H` | Header (parsed, tags stored) |
+| `S` | Segments (sequence, `LN`, `DP`/`KC`/`RC`/`FC` coverage) |
+| `L` | Links / edges (orientations, overlap/CIGAR) |
+| `P` | Paths (parsed, not yet visualised) |
+| Other | Stored with warnings, not visualised |
+
+## Architecture
+
+```
+src/
+  gfa/          GFA parser and graph conversion
+  graph/        Internal graph model, Cytoscape adapter, styles, layouts
+  components/   React UI components
 ```
 
-That prompt is intentionally more concrete than the long design document.
+The parser, graph model, Cytoscape adapter, and UI are kept in separate layers.
+
+## Development
+
+```bash
+# Run tests in watch mode
+npm run test:watch
+```
+
+Tests use [Vitest](https://vitest.dev/) with `jsdom`. No browser is required for unit tests.
