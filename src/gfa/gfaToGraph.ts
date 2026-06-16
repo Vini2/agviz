@@ -82,6 +82,7 @@ export function gfaToGraph(parsed: ParsedGfa): AssemblyGraph {
       targetOrient: link.toOrient,
       overlap: link.overlap !== '*' ? link.overlap : undefined,
       tags: tagListToObject(link.tags),
+      raw: link.rawLine,
     });
   }
 

@@ -21,6 +21,8 @@ const sampleEdge: AssemblyEdge = {
   targetOrient: '-',
   overlap: '4M',
   tags: {},
+  reciprocalMemberCount: 2,
+  rawLinks: ['L\tcontig1\t+\tcontig2\t-\t4M', 'L\tcontig2\t+\tcontig1\t-\t4M'],
 };
 
 describe('InspectorPanel – empty selection', () => {
@@ -81,7 +83,7 @@ describe('InspectorPanel – node selected', () => {
 describe('InspectorPanel – edge selected', () => {
   it('shows the link heading', () => {
     render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
-    expect(screen.getByText(/link/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /link: contig1-contig2/i })).toBeInTheDocument();
   });
 
   it('shows source and target IDs', () => {
@@ -103,6 +105,38 @@ describe('InspectorPanel – edge selected', () => {
   it('shows overlap / CIGAR', () => {
     render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
     expect(screen.getByText('4M')).toBeInTheDocument();
+  });
+
+  it('shows represented GFA link record count', () => {
+    render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText(/gfa link records represented/i)).toBeInTheDocument();
+  });
+
+  it('shows raw links when available', () => {
+    const { container } = render(<InspectorPanel selected={{ kind: 'edge', data: sampleEdge }} />);
+    const rawLines = Array.from(container.querySelectorAll('code')).map((node) =>
+      (node.textContent ?? '').trim(),
+    );
+    expect(rawLines).toEqual(
+      expect.arrayContaining([
+        'L\tcontig1\t+\tcontig2\t-\t4M',
+        'L\tcontig2\t+\tcontig1\t-\t4M',
+      ]),
+    );
+  });
+
+  it('defaults represented count to 1 when metadata is absent', () => {
+    const singleEdge: AssemblyEdge = { ...sampleEdge, reciprocalMemberCount: undefined, rawLinks: [] };
+    render(<InspectorPanel selected={{ kind: 'edge', data: singleEdge }} />);
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /raw links/i })).not.toBeInTheDocument();
+  });
+
+  it('does not render raw links section when rawLinks is undefined', () => {
+    const singleEdge: AssemblyEdge = { ...sampleEdge, reciprocalMemberCount: undefined, rawLinks: undefined };
+    render(<InspectorPanel selected={{ kind: 'edge', data: singleEdge }} />);
+    expect(screen.queryByRole('heading', { name: /raw links/i })).not.toBeInTheDocument();
   });
 });
 

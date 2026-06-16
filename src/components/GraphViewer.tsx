@@ -74,6 +74,9 @@ export function GraphViewer({
             targetOrient: data.targetOrient as '+' | '-' | undefined,
             overlap: data.overlap as string | undefined,
             tags: (data.tags as Record<string, string>) ?? {},
+            reciprocalMemberCount: data.reciprocalMemberCount as number | undefined,
+            reciprocalMembers: (data.reciprocalMembers as string[] | undefined) ?? undefined,
+            rawLinks: (data.rawLinks as string[] | undefined) ?? undefined,
           },
         });
       }

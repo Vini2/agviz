@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseGfa } from '../gfa/parseGfa';
 import { gfaToGraph } from '../gfa/gfaToGraph';
 import { graphToCytoscape } from '../graph/cytoscapeElements';
+import reciprocalLinksGfa from './fixtures/reciprocal_links.gfa?raw';
 
 const integrationGfa = `H\tVN:Z:1.0
 S\tone_kb\t*\tLN:i:1000\tDP:f:10
@@ -63,5 +64,24 @@ describe('integration: GFA -> parseGfa -> gfaToGraph -> graphToCytoscape', () =>
     expect(link?.data.sourceOrient).toBe('+');
     expect(link?.data.targetOrient).toBe('+');
     expect(link?.data.overlap).toBe('100M');
+  });
+
+  it('renders one visible gfa-link per reciprocal pair', () => {
+    const reciprocalGraph = gfaToGraph(parseGfa(reciprocalLinksGfa));
+    const reciprocalElements = graphToCytoscape(reciprocalGraph, {
+      lengthScale: { pixelsPerBase: 0.1, minVisualLengthPx: 0 },
+      themeMode: 'light',
+      colorByCoverage: false,
+    });
+
+    const links = reciprocalElements.edges.filter((edge) => edge.classes === 'gfa-link');
+    expect(links).toHaveLength(2);
+    expect(
+      links.map((edge) => [edge.data.sourceSegment, edge.data.targetSegment]).sort(),
+    ).toEqual([
+      ['A', 'B'],
+      ['B', 'C'],
+    ]);
+    expect(links.every((edge) => edge.data.reciprocalMemberCount === 2)).toBe(true);
   });
 });
