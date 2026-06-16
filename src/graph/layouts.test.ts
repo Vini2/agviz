@@ -13,10 +13,11 @@ describe('LAYOUT_NAMES', () => {
     expect(LAYOUT_NAMES).toContain('fcose');
   });
 
-  it('includes cose, circle, concentric, grid', () => {
+  it('includes cose, circle, concentric, breadthfirst, grid', () => {
     expect(LAYOUT_NAMES).toContain('cose');
     expect(LAYOUT_NAMES).toContain('circle');
     expect(LAYOUT_NAMES).toContain('concentric');
+    expect(LAYOUT_NAMES).toContain('breadthfirst');
     expect(LAYOUT_NAMES).toContain('grid');
   });
 });
@@ -32,7 +33,7 @@ describe('LARGE_GRAPH_NODE_THRESHOLD and LARGE_GRAPH_EDGE_THRESHOLD', () => {
 });
 
 describe('getLayoutOptions', () => {
-  const allLayouts: LayoutName[] = ['fcose', 'cose', 'circle', 'concentric', 'grid'];
+  const allLayouts: LayoutName[] = ['fcose', 'cose', 'breadthfirst', 'circle', 'concentric', 'grid'];
 
   it.each(allLayouts)('%s layout has correct name property', (name) => {
     const opts = getLayoutOptions(name);
