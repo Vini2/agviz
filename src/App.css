@@ -7,22 +7,12 @@
 }
 
 :root {
-  --color-bg: #0f172a;
-  --color-surface: #1e293b;
-  --color-border: #334155;
-  --color-text: #e2e8f0;
-  --color-text-muted: #94a3b8;
-  --color-accent: #4a9eff;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
   --font: system-ui, -apple-system, sans-serif;
   --radius: 6px;
 }
 
 body {
   font-family: var(--font);
-  background: var(--color-bg);
-  color: var(--color-text);
   height: 100vh;
   overflow: hidden;
 }
@@ -33,14 +23,39 @@ body {
   flex-direction: column;
 }
 
+.app[data-theme='light'] {
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-border: #cbd5e1;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-accent: #2563eb;
+  --color-warning: #b45309;
+  --color-error: #dc2626;
+  --color-canvas: #ffffff;
+}
+
+.app[data-theme='dark'] {
+  --color-bg: #020617;
+  --color-surface: #111827;
+  --color-border: #334155;
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+  --color-accent: #7dd3fc;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-canvas: #000000;
+}
+
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
-/* Header */
 .app-header {
   display: flex;
   align-items: baseline;
@@ -72,7 +87,6 @@ body {
   color: var(--color-text-muted);
 }
 
-/* Toolbar */
 .app-toolbar {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
@@ -111,10 +125,17 @@ body {
 }
 
 .toolbar button:hover {
-  background: var(--color-border);
+  background: var(--color-surface);
 }
 
-/* Upload */
+.toolbar-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
 .app-upload {
   display: flex;
   justify-content: center;
@@ -157,11 +178,10 @@ body {
   display: none;
 }
 
-/* Error & warnings */
 .app-error {
   margin: 0.5rem 1rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(239, 68, 68, 0.15);
+  background: color-mix(in oklab, var(--color-error) 15%, transparent);
   border: 1px solid var(--color-error);
   border-radius: var(--radius);
   font-size: 0.85rem;
@@ -186,7 +206,6 @@ body {
   margin-top: 0.25rem;
 }
 
-/* Main area */
 .app-main {
   display: flex;
   flex: 1;
@@ -194,12 +213,11 @@ body {
   min-height: 0;
 }
 
-/* Graph viewer */
 .graph-viewer-wrapper {
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: #0a0f1e;
+  background: var(--color-canvas);
 }
 
 .graph-viewer-placeholder {
@@ -218,7 +236,6 @@ body {
   height: 100%;
 }
 
-/* Inspector */
 .inspector-panel {
   width: 260px;
   border-left: 1px solid var(--color-border);
@@ -295,7 +312,6 @@ body {
   font-weight: 500;
 }
 
-/* Status bar */
 .status-bar {
   display: flex;
   align-items: center;

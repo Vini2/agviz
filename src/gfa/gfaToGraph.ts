@@ -1,16 +1,22 @@
-import type { ParsedGfa, GfaSegment } from './gfaTypes';
+import type { ParsedGfa, GfaSegment, GfaTag } from './gfaTypes';
 import { tagListToObject } from './parseGfa';
 import type { AssemblyGraph, AssemblyNode, AssemblyEdge, AssemblyGraphStats } from '../graph/graphTypes';
 
 const MIN_VALID_SEGMENT_LENGTH = 1;
 
-function getCoverage(tags: Record<string, string>): number | undefined {
+export function extractCoverage(tags: GfaTag[]): number | undefined {
   for (const key of ['DP', 'KC', 'RC', 'FC']) {
-    if (tags[key] !== undefined) {
-      const val = parseFloat(tags[key]);
-      if (!isNaN(val)) return val;
+    const tag = tags.find((candidate) => candidate.name === key);
+    if (!tag) {
+      continue;
+    }
+
+    const value = Number.parseFloat(tag.value);
+    if (Number.isFinite(value)) {
+      return value;
     }
   }
+
   return undefined;
 }
 
@@ -37,7 +43,7 @@ export function gfaToGraph(parsed: ParsedGfa): AssemblyGraph {
   const nodes: AssemblyNode[] = parsed.segments.map((seg) => {
     const tags = tagListToObject(seg.tags);
     const length = estimateSegmentLength(seg);
-    const coverage = getCoverage(tags);
+    const coverage = extractCoverage(seg.tags);
     degreeMap.set(seg.name, 0);
     return {
       id: seg.name,

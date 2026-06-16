@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gfaToGraph, estimateSegmentLength } from './gfaToGraph';
+import { gfaToGraph, estimateSegmentLength, extractCoverage } from './gfaToGraph';
 import { parseGfa } from './parseGfa';
 import type { GfaSegment } from './gfaTypes';
 import lengthContrastGfa from '../test/fixtures/length_contrast.gfa?raw';
@@ -172,6 +172,18 @@ describe('gfaToGraph – coverage tag priority', () => {
     const gfa = 'S\tnode1\tACGT\n';
     const graph = gfaToGraph(parseGfa(gfa));
     expect(graph.nodes[0].coverage).toBeUndefined();
+  });
+
+  it('returns undefined for invalid numeric values', () => {
+    const gfa = 'S\tnode1\t*\tLN:i:100\tDP:f:not-a-number\tKC:i:abc\n';
+    const graph = gfaToGraph(parseGfa(gfa));
+    expect(graph.nodes[0].coverage).toBeUndefined();
+  });
+});
+
+describe('extractCoverage', () => {
+  it('returns undefined when provided an empty tag list', () => {
+    expect(extractCoverage([])).toBeUndefined();
   });
 });
 

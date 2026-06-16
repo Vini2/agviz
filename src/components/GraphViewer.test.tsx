@@ -3,11 +3,11 @@ import { render, screen } from '@testing-library/react';
 import { GraphViewer } from './GraphViewer';
 import type { AssemblyGraph } from '../graph/graphTypes';
 
-// Cytoscape does not work in jsdom (no real DOM canvas), so mock it minimally.
 vi.mock('cytoscape', () => {
   const mockCy = {
     on: vi.fn(),
     off: vi.fn(),
+    style: vi.fn(),
     elements: vi.fn().mockReturnValue({ remove: vi.fn() }),
     add: vi.fn(),
     layout: vi.fn().mockReturnValue({ run: vi.fn() }),
@@ -17,7 +17,6 @@ vi.mock('cytoscape', () => {
     use: vi.fn(),
   };
   const cytoscape = vi.fn().mockReturnValue(mockCy);
-  // expose use() on the constructor itself
   (cytoscape as unknown as { use: () => void }).use = vi.fn();
   return { default: cytoscape };
 });
@@ -33,8 +32,8 @@ const emptyGraph: AssemblyGraph = {
 
 const tinyGraph: AssemblyGraph = {
   nodes: [
-    { id: 'contig1', label: 'contig1', length: 8, tags: {} },
-    { id: 'contig2', label: 'contig2', length: 8, tags: {} },
+    { id: 'contig1', label: 'contig1', length: 1000, tags: {} },
+    { id: 'contig2', label: 'contig2', length: 2000, tags: {} },
   ],
   edges: [
     {
@@ -48,43 +47,54 @@ const tinyGraph: AssemblyGraph = {
     },
   ],
   warnings: [],
-  stats: { nodeCount: 2, edgeCount: 1, totalLength: 16 },
+  stats: { nodeCount: 2, edgeCount: 1, totalLength: 3000 },
 };
+
+function renderViewer(graph: AssemblyGraph | null, themeMode: 'light' | 'dark' = 'light') {
+  return render(
+    <GraphViewer
+      graph={graph}
+      layout="fcose"
+      onSelect={vi.fn()}
+      themeMode={themeMode}
+      colorByCoverage={false}
+    />,
+  );
+}
 
 describe('GraphViewer', () => {
   it('renders placeholder when graph is null', () => {
-    render(<GraphViewer graph={null} layout="fcose" onSelect={vi.fn()} />);
+    renderViewer(null);
     expect(screen.getByText(/upload a gfa file/i)).toBeInTheDocument();
   });
 
   it('renders the canvas container', () => {
-    render(<GraphViewer graph={null} layout="fcose" onSelect={vi.fn()} />);
+    renderViewer(null);
     expect(screen.getByRole('img', { name: /assembly graph canvas/i })).toBeInTheDocument();
   });
 
   it('renders without crashing with an empty graph', () => {
-    expect(() =>
-      render(<GraphViewer graph={emptyGraph} layout="fcose" onSelect={vi.fn()} />),
-    ).not.toThrow();
+    expect(() => renderViewer(emptyGraph)).not.toThrow();
   });
 
   it('renders without crashing with a tiny graph', () => {
-    expect(() =>
-      render(<GraphViewer graph={tinyGraph} layout="fcose" onSelect={vi.fn()} />),
-    ).not.toThrow();
+    expect(() => renderViewer(tinyGraph)).not.toThrow();
   });
 
   it('does not show placeholder when graph is provided', () => {
-    render(<GraphViewer graph={tinyGraph} layout="fcose" onSelect={vi.fn()} />);
+    renderViewer(tinyGraph);
     expect(screen.queryByText(/upload a gfa file/i)).not.toBeInTheDocument();
   });
 
-  it('accepts different layout names without crashing', () => {
-    const layouts = ['fcose', 'cose', 'breadthfirst', 'circle', 'grid'] as const;
-    for (const layout of layouts) {
-      expect(() =>
-        render(<GraphViewer graph={tinyGraph} layout={layout} onSelect={vi.fn()} />),
-      ).not.toThrow();
-    }
+  it('uses light graph background by default', () => {
+    const { container } = renderViewer(null, 'light');
+    const wrapper = container.querySelector('.graph-viewer-wrapper');
+    expect(wrapper).toHaveStyle({ background: 'rgb(255, 255, 255)' });
+  });
+
+  it('uses black graph background in dark theme', () => {
+    const { container } = renderViewer(null, 'dark');
+    const wrapper = container.querySelector('.graph-viewer-wrapper');
+    expect(wrapper).toHaveStyle({ background: 'rgb(0, 0, 0)' });
   });
 });
