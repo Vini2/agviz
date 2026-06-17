@@ -1,12 +1,20 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type cytoscape from 'cytoscape';
 import type { AssemblyGraph } from '../graph/graphTypes';
+import type { AssemblyEdge } from '../graph/graphTypes';
 import type { ThemeMode } from '../graph/coverageColors';
-import { coverageMinMax, coverageToColor, defaultContigColor } from '../graph/coverageColors';
+import {
+  bandageSegmentColor,
+  coverageMinMax,
+  coverageToColor,
+  defaultContigColor,
+} from '../graph/coverageColors';
 import { contigVisualThickness } from '../graph/visualScale';
-import { endpointId } from '../graph/cytoscapeElements';
+import { endpointId, mapLinkEndpoints } from '../graph/cytoscapeElements';
+import { deduplicateReciprocalLinks } from '../graph/linkDeduplication';
 import { curvedSegmentPath, majorArcPath, graphCentre, type Point } from '../graph/arcGeometry';
 import { getThemePalette } from '../graph/styles';
+import type { LayoutName } from '../graph/layouts';
 
 interface SegmentPath {
   segmentId: string;
@@ -18,12 +26,21 @@ interface SegmentPath {
   labelY: number;
 }
 
+interface LinkPath {
+  id: string;
+  pathD: string;
+  edge: AssemblyEdge;
+}
+
 export interface GraphOverlayProps {
   cy: cytoscape.Core | null;
   graph: AssemblyGraph | null;
   themeMode: ThemeMode;
   colorByCoverage: boolean;
   selectedSegmentId: string | null;
+  layout?: LayoutName;
+  selectedLinkId?: string | null;
+  onLinkSelect?: (edge: AssemblyEdge) => void;
 }
 
 function modelToViewport(
@@ -43,14 +60,20 @@ export function GraphOverlay({
   themeMode,
   colorByCoverage,
   selectedSegmentId,
+  layout,
+  selectedLinkId,
+  onLinkSelect,
 }: GraphOverlayProps) {
-  const [paths, setPaths] = useState<SegmentPath[]>([]);
+  const [segmentPaths, setSegmentPaths] = useState<SegmentPath[]>([]);
+  const [linkPaths, setLinkPaths] = useState<LinkPath[]>([]);
   const rafRef = useRef<number | null>(null);
   const palette = getThemePalette(themeMode);
+  const isBandageStyle = layout === 'bandage';
 
   const buildPaths = useCallback(() => {
     if (!cy || !graph || graph.nodes.length === 0) {
-      setPaths([]);
+      setSegmentPaths([]);
+      setLinkPaths([]);
       return;
     }
 
@@ -58,7 +81,7 @@ export function GraphOverlay({
     const zoom = cy.zoom();
 
     const { minCoverage, maxCoverage } = coverageMinMax(graph.nodes.map((n) => n.coverage));
-    const thickness = contigVisualThickness();
+    const thickness = isBandageStyle ? 2.25 : contigVisualThickness();
 
     // Collect all endpoint viewport positions to compute graph centre
     const allViewportPositions: Point[] = [];
@@ -72,7 +95,8 @@ export function GraphOverlay({
     }
 
     if (allViewportPositions.length === 0) {
-      setPaths([]);
+      setSegmentPaths([]);
+      setLinkPaths([]);
       return;
     }
 
@@ -91,13 +115,15 @@ export function GraphOverlay({
 
       const color = colorByCoverage
         ? coverageToColor(node.coverage, minCoverage, maxCoverage, themeMode)
-        : defaultContigColor(themeMode);
+        : isBandageStyle
+          ? bandageSegmentColor(node.id)
+          : defaultContigColor(themeMode);
 
       let pathD: string;
       if (isSingleSegment) {
         pathD = majorArcPath(left, right);
       } else {
-        pathD = curvedSegmentPath(left, right, centre);
+        pathD = curvedSegmentPath(left, right, centre, isBandageStyle ? 0.42 : 0.25);
       }
 
       // Label near the chord midpoint
@@ -115,8 +141,48 @@ export function GraphOverlay({
       });
     }
 
-    setPaths(newPaths);
-  }, [cy, graph, themeMode, colorByCoverage]);
+    const newLinkPaths: LinkPath[] = [];
+    if (isBandageStyle) {
+      deduplicateReciprocalLinks(graph.edges).forEach((group, index) => {
+        const representative = group.representative;
+        const { sourceEndpointId, targetEndpointId } = mapLinkEndpoints(
+          representative.source,
+          representative.sourceOrient,
+          representative.target,
+          representative.targetOrient,
+        );
+        const sourceEle = cy.getElementById(sourceEndpointId);
+        const targetEle = cy.getElementById(targetEndpointId);
+        if (sourceEle.length === 0 || targetEle.length === 0) return;
+
+        const source = modelToViewport(sourceEle.position(), pan, zoom);
+        const target = modelToViewport(targetEle.position(), pan, zoom);
+        const id = `link::${representative.id}::${index}`;
+
+        newLinkPaths.push({
+          id,
+          pathD: `M ${source.x} ${source.y} L ${target.x} ${target.y}`,
+          edge: {
+            id: representative.id,
+            source: representative.source,
+            target: representative.target,
+            sourceOrient: representative.sourceOrient,
+            targetOrient: representative.targetOrient,
+            overlap: representative.overlap,
+            tags: representative.tags,
+            reciprocalMemberCount: group.members.length,
+            reciprocalMembers: group.members.map((edge) => edge.id),
+            rawLinks: group.members
+              .map((edge) => edge.raw)
+              .filter((raw): raw is string => raw !== undefined),
+          },
+        });
+      });
+    }
+
+    setSegmentPaths(newPaths);
+    setLinkPaths(newLinkPaths);
+  }, [cy, graph, themeMode, colorByCoverage, isBandageStyle]);
 
   // Keep a stable ref to the latest buildPaths so the RAF callback never goes stale
   const buildPathsRef = useRef(buildPaths);
@@ -153,7 +219,7 @@ export function GraphOverlay({
     buildPaths();
   }, [graph, themeMode, colorByCoverage, buildPaths]);
 
-  if (!graph || paths.length === 0) return null;
+  if (!graph || segmentPaths.length === 0) return null;
 
   return (
     <svg
@@ -168,31 +234,65 @@ export function GraphOverlay({
         overflow: 'visible',
       }}
     >
-      {paths.map(({ segmentId, pathD, color, thickness, label, labelX, labelY }) => {
+      {segmentPaths.map(({ segmentId, pathD, color, thickness, label, labelX, labelY }) => {
         const isSelected = segmentId === selectedSegmentId;
         const strokeColor = isSelected ? palette.contigSelectionColor : color;
 
         return (
           <g key={segmentId}>
             <path
+              className="contig-path"
               d={pathD}
               stroke={strokeColor}
               strokeWidth={thickness}
               strokeLinecap="round"
               fill="none"
             />
-            <text
-              x={labelX}
-              y={labelY}
-              fill={palette.textColor}
-              fontSize="7"
-              fontWeight="bold"
-              textAnchor="middle"
-              dominantBaseline="middle"
-              style={{ userSelect: 'none' }}
-            >
-              {label}
-            </text>
+            {!isBandageStyle && (
+              <text
+                x={labelX}
+                y={labelY}
+                fill={palette.textColor}
+                fontSize="7"
+                fontWeight="bold"
+                textAnchor="middle"
+                dominantBaseline="middle"
+                style={{ userSelect: 'none' }}
+              >
+                {label}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {linkPaths.map(({ id, pathD, edge }) => {
+        const isSelected = edge.id === selectedLinkId;
+        const strokeColor = isSelected ? palette.edgeSelectionColor : palette.linkColor;
+
+        return (
+          <g key={id}>
+            <path
+              className="link-path"
+              d={pathD}
+              stroke={strokeColor}
+              strokeWidth={isSelected ? 2 : 1}
+              strokeLinecap="round"
+              fill="none"
+              opacity={0.8}
+            />
+            <path
+              className="link-hit-path"
+              d={pathD}
+              stroke="transparent"
+              strokeWidth={12}
+              strokeLinecap="round"
+              fill="none"
+              pointerEvents="stroke"
+              onClick={(event) => {
+                event.stopPropagation();
+                onLinkSelect?.(edge);
+              }}
+            />
           </g>
         );
       })}

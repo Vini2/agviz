@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { GraphOverlay } from './GraphOverlay';
 import type { AssemblyGraph } from '../graph/graphTypes';
 
@@ -340,6 +340,63 @@ describe('GraphOverlay', () => {
       expect(labels).toContain('A');
       expect(labels).toContain('B');
     });
+  });
+
+  it('hides labels and uses per-segment colours in Bandage-style layout', async () => {
+    const cy = makeCyMock(twoSegPositions);
+    const { container } = render(
+      <GraphOverlay
+        cy={cy as never}
+        graph={twoSegmentGraph}
+        themeMode="light"
+        colorByCoverage={false}
+        selectedSegmentId={null}
+        layout="bandage"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('text')).toHaveLength(0);
+
+      const strokes = Array.from(container.querySelectorAll('path.contig-path')).map((path) =>
+        path.getAttribute('stroke'),
+      );
+      expect(strokes).toHaveLength(2);
+      expect(new Set(strokes).size).toBe(2);
+      expect(strokes).not.toContain('#2563eb');
+    });
+  });
+
+  it('renders clickable Bandage-style link paths', async () => {
+    const onLinkSelect = vi.fn();
+    const cy = makeCyMock(twoSegPositions);
+    const { container } = render(
+      <GraphOverlay
+        cy={cy as never}
+        graph={twoSegmentGraph}
+        themeMode="light"
+        colorByCoverage={false}
+        selectedSegmentId={null}
+        layout="bandage"
+        onLinkSelect={onLinkSelect}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('path.link-path')).not.toBeNull();
+    });
+
+    const hitPath = container.querySelector('path.link-hit-path');
+    expect(hitPath).not.toBeNull();
+    fireEvent.click(hitPath!);
+
+    expect(onLinkSelect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'A-B',
+        source: 'A',
+        target: 'B',
+      }),
+    );
   });
 
   it('renders nothing when no endpoint positions are found in cy', async () => {
