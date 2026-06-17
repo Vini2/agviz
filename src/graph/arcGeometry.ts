@@ -63,7 +63,7 @@ export function curvedSegmentPath(
  *
  * Uses the SVG arc command with largeArcFlag=1 so the segment appears as a
  * major arc rather than a small curve. A radius of 0.75× the chord length
- * (minimum 20) is used when no radius is provided.
+ * (minimum 30) is used when no radius is provided.
  */
 export function majorArcPath(
   left: Point,
@@ -72,6 +72,6 @@ export function majorArcPath(
   sweep: 0 | 1 = 1,
 ): string {
   const dist = Math.hypot(right.x - left.x, right.y - left.y) || 1;
-  const r = radius ?? Math.max(dist * 0.75, 20);
+  const r = radius ?? Math.max(dist * 0.75, 30);
   return `M ${left.x} ${left.y} A ${r} ${r} 0 1 ${sweep} ${right.x} ${right.y}`;
 }

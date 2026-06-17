@@ -95,9 +95,7 @@ export function GraphOverlay({
 
       let pathD: string;
       if (isSingleSegment) {
-        const dist = Math.hypot(right.x - left.x, right.y - left.y) || 1;
-        const r = Math.max(dist * 0.75, 30);
-        pathD = majorArcPath(left, right, r);
+        pathD = majorArcPath(left, right);
       } else {
         pathD = curvedSegmentPath(left, right, centre);
       }
