@@ -1,5 +1,5 @@
 import type cytoscape from 'cytoscape';
-import type { AssemblyGraph } from './graphTypes';
+import type { AssemblyEdge, AssemblyGraph } from './graphTypes';
 import { endpointId, mapLinkEndpoints, type EndpointSide } from './cytoscapeElements';
 import { contigVisualLength, type LengthScaleConfig } from './visualScale';
 
@@ -32,7 +32,15 @@ const CONTIG_FCOSE_GRAVITY = 0.45;
 const CONTIG_FCOSE_NUM_ITERATIONS = 2500;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const BANDAGE_COMPONENT_GAP = 180;
-const BANDAGE_LINK_FAN_RADIUS = 18;
+const BANDAGE_LINK_FAN_RADIUS = 34;
+const BANDAGE_TINY_LINK_HALF_LENGTH = 24;
+const BANDAGE_TINY_MIN_SEGMENT_LENGTH = 170;
+const BANDAGE_CYCLE_RADIUS = 260;
+const BANDAGE_CYCLE_LINK_HALF_ANGLE = 0.055;
+const BANDAGE_BUBBLE_AXIS_X = -120;
+const BANDAGE_BUBBLE_SPLIT_Y = 130;
+const BANDAGE_BUBBLE_JOIN_Y = -105;
+const BANDAGE_BUBBLE_BRANCH_OFFSET = 25;
 const BANDAGE_LENGTH_SCALE: LengthScaleConfig = {
   pixelsPerBase: 0.035,
   minVisualLengthPx: 22,
@@ -49,6 +57,14 @@ interface SegmentJunction {
   leftRoot: string;
   rightRoot: string;
   visualLength: number;
+}
+
+interface BubbleTopology {
+  source: string;
+  sink: string;
+  branches: string[];
+  sourceToBranchEdges: AssemblyEdge[];
+  branchToSinkEdges: AssemblyEdge[];
 }
 
 export function chooseDefaultLayout(graph: AssemblyGraph): LayoutName {
@@ -348,9 +364,293 @@ function fanEndpointFromJunction(junction: Point, root: string, endpoint: string
   };
 }
 
+function oppositeEndpointId(endpoint: string, segmentId: string): string {
+  return endpoint === endpointId(segmentId, 'left')
+    ? endpointId(segmentId, 'right')
+    : endpointId(segmentId, 'left');
+}
+
+function twoSegmentBandageEndpointPositions(graph: AssemblyGraph): Record<string, Point> | null {
+  if (graph.nodes.length !== 2 || graph.edges.length !== 1) {
+    return null;
+  }
+
+  const [edge] = graph.edges;
+  const source = graph.nodes.find((node) => node.id === edge.source);
+  const target = graph.nodes.find((node) => node.id === edge.target);
+  if (!source || !target || source.id === target.id) {
+    return null;
+  }
+
+  const { sourceEndpointId, targetEndpointId } = mapLinkEndpoints(
+    edge.source,
+    edge.sourceOrient,
+    edge.target,
+    edge.targetOrient,
+  );
+  const sourceOuterEndpointId = oppositeEndpointId(sourceEndpointId, source.id);
+  const targetOuterEndpointId = oppositeEndpointId(targetEndpointId, target.id);
+  const sourceLength = Math.max(
+    contigVisualLength(source.length, BANDAGE_LENGTH_SCALE),
+    BANDAGE_TINY_MIN_SEGMENT_LENGTH,
+  );
+  const targetLength = Math.max(
+    contigVisualLength(target.length, BANDAGE_LENGTH_SCALE),
+    BANDAGE_TINY_MIN_SEGMENT_LENGTH,
+  );
+
+  return {
+    [sourceOuterEndpointId]: { x: -(BANDAGE_TINY_LINK_HALF_LENGTH + sourceLength), y: 0 },
+    [sourceEndpointId]: { x: -BANDAGE_TINY_LINK_HALF_LENGTH, y: 0 },
+    [targetEndpointId]: { x: BANDAGE_TINY_LINK_HALF_LENGTH, y: 0 },
+    [targetOuterEndpointId]: { x: BANDAGE_TINY_LINK_HALF_LENGTH + targetLength, y: 0 },
+  };
+}
+
+function orderedDirectedCycle(graph: AssemblyGraph): AssemblyEdge[] | null {
+  if (graph.nodes.length < 3 || graph.edges.length !== graph.nodes.length) {
+    return null;
+  }
+
+  const nodeIds = new Set(graph.nodes.map((node) => node.id));
+  const edgesBySource = new Map<string, AssemblyEdge[]>();
+  for (const edge of graph.edges) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target) || edge.source === edge.target) {
+      return null;
+    }
+
+    const existing = edgesBySource.get(edge.source) ?? [];
+    existing.push(edge);
+    edgesBySource.set(edge.source, existing);
+  }
+
+  if ([...edgesBySource.values()].some((edges) => edges.length !== 1)) {
+    return null;
+  }
+
+  const start = graph.edges[0].source;
+  const ordered: AssemblyEdge[] = [];
+  const visitedEdges = new Set<string>();
+  let currentSource = start;
+
+  for (let i = 0; i < graph.edges.length; i += 1) {
+    const edge = edgesBySource.get(currentSource)?.[0];
+    if (!edge || visitedEdges.has(edge.id)) {
+      return null;
+    }
+
+    ordered.push(edge);
+    visitedEdges.add(edge.id);
+    currentSource = edge.target;
+  }
+
+  return currentSource === start && ordered.length === graph.nodes.length ? ordered : null;
+}
+
+function pointOnCycle(angle: number, radius: number): Point {
+  return {
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle) * radius,
+  };
+}
+
+function simpleCycleBandageEndpointPositions(graph: AssemblyGraph): Record<string, Point> | null {
+  const orderedEdges = orderedDirectedCycle(graph);
+  if (!orderedEdges) {
+    return null;
+  }
+
+  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const totalVisualLength = orderedEdges.reduce((sum, edge) => {
+    const source = nodesById.get(edge.source);
+    return sum + contigVisualLength(source?.length, BANDAGE_LENGTH_SCALE);
+  }, 0);
+  if (totalVisualLength <= 0) {
+    return null;
+  }
+
+  const positions: Record<string, Point> = {};
+  let angle = -Math.PI * 0.86;
+
+  for (const edge of orderedEdges) {
+    const source = nodesById.get(edge.source);
+    const sourceVisualLength = contigVisualLength(source?.length, BANDAGE_LENGTH_SCALE);
+    angle += (sourceVisualLength / totalVisualLength) * Math.PI * 2;
+
+    const { sourceEndpointId, targetEndpointId } = mapLinkEndpoints(
+      edge.source,
+      edge.sourceOrient,
+      edge.target,
+      edge.targetOrient,
+    );
+    positions[sourceEndpointId] = pointOnCycle(
+      angle - BANDAGE_CYCLE_LINK_HALF_ANGLE,
+      BANDAGE_CYCLE_RADIUS,
+    );
+    positions[targetEndpointId] = pointOnCycle(
+      angle + BANDAGE_CYCLE_LINK_HALF_ANGLE,
+      BANDAGE_CYCLE_RADIUS,
+    );
+  }
+
+  const expectedEndpointCount = graph.nodes.length * 2;
+  return Object.keys(positions).length === expectedEndpointCount ? positions : null;
+}
+
+function twoTerminalBubbleTopology(graph: AssemblyGraph): BubbleTopology | null {
+  if (graph.nodes.length !== 4 || graph.edges.length !== 4) {
+    return null;
+  }
+
+  const nodeIds = new Set(graph.nodes.map((node) => node.id));
+  const inEdges = new Map<string, AssemblyEdge[]>();
+  const outEdges = new Map<string, AssemblyEdge[]>();
+  for (const node of graph.nodes) {
+    inEdges.set(node.id, []);
+    outEdges.set(node.id, []);
+  }
+
+  for (const edge of graph.edges) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target) || edge.source === edge.target) {
+      return null;
+    }
+
+    outEdges.get(edge.source)!.push(edge);
+    inEdges.get(edge.target)!.push(edge);
+  }
+
+  const source = graph.nodes.find(
+    (node) => (outEdges.get(node.id)?.length ?? 0) === 2 && (inEdges.get(node.id)?.length ?? 0) === 0,
+  );
+  const sink = graph.nodes.find(
+    (node) => (inEdges.get(node.id)?.length ?? 0) === 2 && (outEdges.get(node.id)?.length ?? 0) === 0,
+  );
+  if (!source || !sink) {
+    return null;
+  }
+
+  const branches = graph.nodes
+    .filter(
+      (node) =>
+        node.id !== source.id &&
+        node.id !== sink.id &&
+        (inEdges.get(node.id)?.length ?? 0) === 1 &&
+        (outEdges.get(node.id)?.length ?? 0) === 1,
+    )
+    .map((node) => node.id)
+    .sort();
+
+  if (branches.length !== 2) {
+    return null;
+  }
+
+  const sourceToBranchEdges = outEdges
+    .get(source.id)!
+    .slice()
+    .sort((a, b) => a.target.localeCompare(b.target));
+  const branchToSinkEdges = branches
+    .map((branchId) => outEdges.get(branchId)?.[0])
+    .filter((edge): edge is AssemblyEdge => edge !== undefined)
+    .sort((a, b) => a.source.localeCompare(b.source));
+  if (
+    sourceToBranchEdges.some((edge) => !branches.includes(edge.target)) ||
+    branchToSinkEdges.some((edge) => edge.target !== sink.id)
+  ) {
+    return null;
+  }
+
+  return {
+    source: source.id,
+    sink: sink.id,
+    branches,
+    sourceToBranchEdges,
+    branchToSinkEdges,
+  };
+}
+
+function simpleBubbleBandageEndpointPositions(graph: AssemblyGraph): Record<string, Point> | null {
+  const topology = twoTerminalBubbleTopology(graph);
+  if (!topology) {
+    return null;
+  }
+
+  const positions: Record<string, Point> = {};
+  const split: Point = { x: BANDAGE_BUBBLE_AXIS_X, y: BANDAGE_BUBBLE_SPLIT_Y };
+  const join: Point = { x: BANDAGE_BUBBLE_AXIS_X, y: BANDAGE_BUBBLE_JOIN_Y };
+  const sourceEdge = topology.sourceToBranchEdges[0];
+  const sinkEdge = topology.branchToSinkEdges[0];
+  const sourceEndpoint = mapLinkEndpoints(
+    sourceEdge.source,
+    sourceEdge.sourceOrient,
+    sourceEdge.target,
+    sourceEdge.targetOrient,
+  ).sourceEndpointId;
+  const sinkEndpoint = mapLinkEndpoints(
+    sinkEdge.source,
+    sinkEdge.sourceOrient,
+    sinkEdge.target,
+    sinkEdge.targetOrient,
+  ).targetEndpointId;
+
+  positions[sourceEndpoint] = split;
+  positions[oppositeEndpointId(sourceEndpoint, topology.source)] = { x: 305, y: -255 };
+  positions[sinkEndpoint] = join;
+  positions[oppositeEndpointId(sinkEndpoint, topology.sink)] = { x: -350, y: -270 };
+
+  topology.branches.forEach((branchId, index) => {
+    const side = index === 0 ? -1 : 1;
+    const sourceToBranchEdge = topology.sourceToBranchEdges.find((edge) => edge.target === branchId);
+    const branchToSinkEdge = topology.branchToSinkEdges.find((edge) => edge.source === branchId);
+    if (!sourceToBranchEdge || !branchToSinkEdge) {
+      return;
+    }
+
+    const branchStartEndpoint = mapLinkEndpoints(
+      sourceToBranchEdge.source,
+      sourceToBranchEdge.sourceOrient,
+      sourceToBranchEdge.target,
+      sourceToBranchEdge.targetOrient,
+    ).targetEndpointId;
+    const branchEndEndpoint = mapLinkEndpoints(
+      branchToSinkEdge.source,
+      branchToSinkEdge.sourceOrient,
+      branchToSinkEdge.target,
+      branchToSinkEdge.targetOrient,
+    ).sourceEndpointId;
+    const branchX = BANDAGE_BUBBLE_AXIS_X + side * BANDAGE_BUBBLE_BRANCH_OFFSET;
+
+    positions[branchStartEndpoint] = {
+      x: branchX,
+      y: split.y - side * 12,
+    };
+    positions[branchEndEndpoint] = {
+      x: branchX,
+      y: join.y + side * 17,
+    };
+  });
+
+  const expectedEndpointCount = graph.nodes.length * 2;
+  return Object.keys(positions).length === expectedEndpointCount ? positions : null;
+}
+
 export function bandageEndpointPositions(graph: AssemblyGraph): Record<string, Point> {
   if (graph.nodes.length === 0) {
     return {};
+  }
+
+  const tinyPositions = twoSegmentBandageEndpointPositions(graph);
+  if (tinyPositions) {
+    return tinyPositions;
+  }
+
+  const cyclePositions = simpleCycleBandageEndpointPositions(graph);
+  if (cyclePositions) {
+    return cyclePositions;
+  }
+
+  const bubblePositions = simpleBubbleBandageEndpointPositions(graph);
+  if (bubblePositions) {
+    return bubblePositions;
   }
 
   const segments = buildSegmentJunctions(graph);

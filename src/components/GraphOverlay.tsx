@@ -32,6 +32,147 @@ interface LinkPath {
   edge: AssemblyEdge;
 }
 
+type BranchSide = -1 | 1;
+const BANDAGE_LINK_HALO_COLOR = '#94a3b8';
+const BANDAGE_LINK_HALO_WIDTH = 22;
+
+function bandageCurvatureForGraph(graph: AssemblyGraph): number {
+  if (graph.nodes.length <= 2 && graph.edges.length <= 1) {
+    return 0.18;
+  }
+
+  return 0.42;
+}
+
+function isSimpleDirectedCycle(graph: AssemblyGraph): boolean {
+  if (graph.nodes.length < 3 || graph.edges.length !== graph.nodes.length) {
+    return false;
+  }
+
+  const nodeIds = new Set(graph.nodes.map((node) => node.id));
+  const edgesBySource = new Map<string, AssemblyEdge[]>();
+  for (const edge of graph.edges) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target) || edge.source === edge.target) {
+      return false;
+    }
+
+    const existing = edgesBySource.get(edge.source) ?? [];
+    existing.push(edge);
+    edgesBySource.set(edge.source, existing);
+  }
+
+  if ([...edgesBySource.values()].some((edges) => edges.length !== 1)) {
+    return false;
+  }
+
+  const start = graph.edges[0].source;
+  const visited = new Set<string>();
+  let current = start;
+
+  for (let i = 0; i < graph.nodes.length; i += 1) {
+    const edge = edgesBySource.get(current)?.[0];
+    if (!edge || visited.has(edge.id)) {
+      return false;
+    }
+
+    visited.add(edge.id);
+    current = edge.target;
+  }
+
+  return current === start && visited.size === graph.edges.length;
+}
+
+function twoTerminalBubbleBranchSides(graph: AssemblyGraph): Map<string, BranchSide> {
+  if (graph.nodes.length !== 4 || graph.edges.length !== 4) {
+    return new Map();
+  }
+
+  const nodeIds = new Set(graph.nodes.map((node) => node.id));
+  const inEdges = new Map<string, AssemblyEdge[]>();
+  const outEdges = new Map<string, AssemblyEdge[]>();
+  for (const node of graph.nodes) {
+    inEdges.set(node.id, []);
+    outEdges.set(node.id, []);
+  }
+
+  for (const edge of graph.edges) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target) || edge.source === edge.target) {
+      return new Map();
+    }
+
+    outEdges.get(edge.source)!.push(edge);
+    inEdges.get(edge.target)!.push(edge);
+  }
+
+  const source = graph.nodes.find(
+    (node) => (outEdges.get(node.id)?.length ?? 0) === 2 && (inEdges.get(node.id)?.length ?? 0) === 0,
+  );
+  const sink = graph.nodes.find(
+    (node) => (inEdges.get(node.id)?.length ?? 0) === 2 && (outEdges.get(node.id)?.length ?? 0) === 0,
+  );
+  if (!source || !sink) {
+    return new Map();
+  }
+
+  const branches = graph.nodes
+    .filter(
+      (node) =>
+        node.id !== source.id &&
+        node.id !== sink.id &&
+        (inEdges.get(node.id)?.length ?? 0) === 1 &&
+        (outEdges.get(node.id)?.length ?? 0) === 1 &&
+        inEdges.get(node.id)?.[0]?.source === source.id &&
+        outEdges.get(node.id)?.[0]?.target === sink.id,
+    )
+    .map((node) => node.id)
+    .sort();
+
+  if (branches.length !== 2) {
+    return new Map();
+  }
+
+  return new Map([
+    [branches[0], -1],
+    [branches[1], 1],
+  ]);
+}
+
+function clockwiseAngle(point: Point, centre: Point): number {
+  const angle = Math.atan2(point.y - centre.y, point.x - centre.x);
+  return angle < 0 ? angle + Math.PI * 2 : angle;
+}
+
+function clockwiseDelta(start: number, end: number): number {
+  return (end - start + Math.PI * 2) % (Math.PI * 2);
+}
+
+function ringSegmentPath(left: Point, right: Point, centre: Point): string {
+  const leftRadius = Math.hypot(left.x - centre.x, left.y - centre.y);
+  const rightRadius = Math.hypot(right.x - centre.x, right.y - centre.y);
+  const radius = Math.max((leftRadius + rightRadius) / 2, 30);
+  const delta = clockwiseDelta(clockwiseAngle(left, centre), clockwiseAngle(right, centre));
+  const largeArcFlag = delta > Math.PI ? 1 : 0;
+
+  return `M ${left.x} ${left.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${right.x} ${right.y}`;
+}
+
+function bubbleBranchPath(left: Point, right: Point, side: BranchSide): string {
+  const dx = right.x - left.x;
+  const dy = right.y - left.y;
+  const chordLength = Math.hypot(dx, dy) || 1;
+  const bend = Math.max(chordLength * 0.55, 90);
+  const c1 = {
+    x: left.x + dx * 0.28 + bend * side,
+    y: left.y + dy * 0.28,
+  };
+  const c2 = {
+    x: left.x + dx * 0.72 + bend * side,
+    y: left.y + dy * 0.72,
+  };
+
+  return `M ${left.x} ${left.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${right.x} ${right.y}`;
+}
+
 export interface GraphOverlayProps {
   cy: cytoscape.Core | null;
   graph: AssemblyGraph | null;
@@ -66,6 +207,7 @@ export function GraphOverlay({
 }: GraphOverlayProps) {
   const [segmentPaths, setSegmentPaths] = useState<SegmentPath[]>([]);
   const [linkPaths, setLinkPaths] = useState<LinkPath[]>([]);
+  const [pressedLinkId, setPressedLinkId] = useState<string | null>(null);
   const rafRef = useRef<number | null>(null);
   const palette = getThemePalette(themeMode);
   const isBandageStyle = layout === 'bandage';
@@ -81,7 +223,7 @@ export function GraphOverlay({
     const zoom = cy.zoom();
 
     const { minCoverage, maxCoverage } = coverageMinMax(graph.nodes.map((n) => n.coverage));
-    const thickness = isBandageStyle ? 2.25 : contigVisualThickness();
+    const thickness = isBandageStyle ? 6 : contigVisualThickness();
 
     // Collect all endpoint viewport positions to compute graph centre
     const allViewportPositions: Point[] = [];
@@ -102,6 +244,9 @@ export function GraphOverlay({
 
     const centre = graphCentre(allViewportPositions);
     const isSingleSegment = graph.nodes.length === 1;
+    const isSimpleCycle = isBandageStyle && isSimpleDirectedCycle(graph);
+    const bubbleBranchSides = isBandageStyle ? twoTerminalBubbleBranchSides(graph) : new Map();
+    const bandageCurvature = bandageCurvatureForGraph(graph);
 
     const newPaths: SegmentPath[] = [];
 
@@ -122,8 +267,12 @@ export function GraphOverlay({
       let pathD: string;
       if (isSingleSegment) {
         pathD = majorArcPath(left, right);
+      } else if (isSimpleCycle) {
+        pathD = ringSegmentPath(left, right, centre);
+      } else if (bubbleBranchSides.has(node.id)) {
+        pathD = bubbleBranchPath(left, right, bubbleBranchSides.get(node.id)!);
       } else {
-        pathD = curvedSegmentPath(left, right, centre, isBandageStyle ? 0.42 : 0.25);
+        pathD = curvedSegmentPath(left, right, centre, isBandageStyle ? bandageCurvature : 0.25);
       }
 
       // Label near the chord midpoint
@@ -219,6 +368,10 @@ export function GraphOverlay({
     buildPaths();
   }, [graph, themeMode, colorByCoverage, buildPaths]);
 
+  useEffect(() => {
+    setPressedLinkId(null);
+  }, [graph, layout]);
+
   if (!graph || segmentPaths.length === 0) return null;
 
   return (
@@ -234,6 +387,41 @@ export function GraphOverlay({
         overflow: 'visible',
       }}
     >
+      {linkPaths.map(({ id, pathD, edge }) => {
+        if (edge.id !== pressedLinkId) {
+          return null;
+        }
+
+        return (
+          <path
+            key={`${id}-selection`}
+            className="link-selection-path"
+            d={pathD}
+            stroke={BANDAGE_LINK_HALO_COLOR}
+            strokeWidth={BANDAGE_LINK_HALO_WIDTH}
+            strokeLinecap="round"
+            fill="none"
+            opacity={0.65}
+          />
+        );
+      })}
+      {linkPaths.map(({ id, pathD, edge }) => {
+        const isSelected = edge.id === selectedLinkId;
+        const strokeColor = isSelected ? palette.edgeSelectionColor : palette.linkColor;
+
+        return (
+          <path
+            key={`${id}-visible`}
+            className="link-path"
+            d={pathD}
+            stroke={strokeColor}
+            strokeWidth={isSelected ? 2.5 : 1}
+            strokeLinecap="round"
+            fill="none"
+            opacity={0.8}
+          />
+        );
+      })}
       {segmentPaths.map(({ segmentId, pathD, color, thickness, label, labelX, labelY }) => {
         const isSelected = segmentId === selectedSegmentId;
         const strokeColor = isSelected ? palette.contigSelectionColor : color;
@@ -245,7 +433,7 @@ export function GraphOverlay({
               d={pathD}
               stroke={strokeColor}
               strokeWidth={thickness}
-              strokeLinecap="round"
+              strokeLinecap={isBandageStyle ? 'butt' : 'round'}
               fill="none"
             />
             {!isBandageStyle && (
@@ -266,34 +454,38 @@ export function GraphOverlay({
         );
       })}
       {linkPaths.map(({ id, pathD, edge }) => {
-        const isSelected = edge.id === selectedLinkId;
-        const strokeColor = isSelected ? palette.edgeSelectionColor : palette.linkColor;
-
         return (
-          <g key={id}>
-            <path
-              className="link-path"
-              d={pathD}
-              stroke={strokeColor}
-              strokeWidth={isSelected ? 2 : 1}
-              strokeLinecap="round"
-              fill="none"
-              opacity={0.8}
-            />
-            <path
-              className="link-hit-path"
-              d={pathD}
-              stroke="transparent"
-              strokeWidth={12}
-              strokeLinecap="round"
-              fill="none"
-              pointerEvents="stroke"
-              onClick={(event) => {
-                event.stopPropagation();
-                onLinkSelect?.(edge);
-              }}
-            />
-          </g>
+          <path
+            key={`${id}-hit`}
+            className="link-hit-path"
+            d={pathD}
+            stroke="transparent"
+            strokeWidth={12}
+            strokeLinecap="round"
+            fill="none"
+            style={{ pointerEvents: 'stroke' }}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              setPressedLinkId(edge.id);
+              event.currentTarget.setPointerCapture?.(event.pointerId);
+            }}
+            onPointerUp={(event) => {
+              event.stopPropagation();
+              setPressedLinkId(null);
+              event.currentTarget.releasePointerCapture?.(event.pointerId);
+            }}
+            onPointerCancel={(event) => {
+              event.stopPropagation();
+              setPressedLinkId(null);
+            }}
+            onPointerLeave={() => {
+              setPressedLinkId(null);
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onLinkSelect?.(edge);
+            }}
+          />
         );
       })}
     </svg>

@@ -167,7 +167,165 @@ describe('bandageEndpointPositions', () => {
       positions['A::__right'].y - positions['B::__left'].y,
     );
 
-    expect(linkLength).toBeGreaterThan(0);
+    expect(linkLength).toBeGreaterThan(40);
+  });
+
+  it('lays tiny two-segment links out as a non-overlapping chain', () => {
+    const graph: AssemblyGraph = {
+      nodes: [
+        { id: 'contig1', label: 'contig1', length: 8, tags: {} },
+        { id: 'contig2', label: 'contig2', length: 8, tags: {} },
+      ],
+      edges: [
+        {
+          id: 'contig1-contig2',
+          source: 'contig1',
+          target: 'contig2',
+          sourceOrient: '+',
+          targetOrient: '-',
+          tags: {},
+        },
+      ],
+      warnings: [],
+      stats: { nodeCount: 2, edgeCount: 1, totalLength: 16 },
+    };
+
+    const positions = bandageEndpointPositions(graph);
+    expect(positions['contig1::__left'].x).toBeLessThan(positions['contig1::__right'].x);
+    expect(positions['contig1::__right'].x).toBeLessThan(positions['contig2::__right'].x);
+    expect(positions['contig2::__right'].x).toBeLessThan(positions['contig2::__left'].x);
+  });
+
+  it('lays a simple Bandage-style cycle as adjacent ring segments with short links', () => {
+    const graph: AssemblyGraph = {
+      nodes: [
+        { id: 'A', label: 'A', length: 1000, tags: {} },
+        { id: 'B', label: 'B', length: 1500, tags: {} },
+        { id: 'C', label: 'C', length: 900, tags: {} },
+      ],
+      edges: [
+        {
+          id: 'A-B',
+          source: 'A',
+          target: 'B',
+          sourceOrient: '+',
+          targetOrient: '+',
+          tags: {},
+        },
+        {
+          id: 'B-C',
+          source: 'B',
+          target: 'C',
+          sourceOrient: '+',
+          targetOrient: '+',
+          tags: {},
+        },
+        {
+          id: 'C-A',
+          source: 'C',
+          target: 'A',
+          sourceOrient: '+',
+          targetOrient: '+',
+          tags: {},
+        },
+      ],
+      warnings: [],
+      stats: { nodeCount: 3, edgeCount: 3, totalLength: 3400 },
+    };
+
+    const positions = bandageEndpointPositions(graph);
+    const distance = (first: string, second: string) =>
+      Math.hypot(positions[first].x - positions[second].x, positions[first].y - positions[second].y);
+    const radius = (id: string) => Math.hypot(positions[id].x, positions[id].y);
+
+    expect(Object.keys(positions).sort()).toEqual([
+      'A::__left',
+      'A::__right',
+      'B::__left',
+      'B::__right',
+      'C::__left',
+      'C::__right',
+    ]);
+    expect(distance('A::__right', 'B::__left')).toBeLessThan(distance('A::__left', 'A::__right'));
+    expect(distance('B::__right', 'C::__left')).toBeLessThan(distance('B::__left', 'B::__right'));
+    expect(distance('C::__right', 'A::__left')).toBeLessThan(distance('C::__left', 'C::__right'));
+    Object.keys(positions).forEach((id) => {
+      expect(radius(id)).toBeGreaterThan(250);
+      expect(radius(id)).toBeLessThan(270);
+    });
+  });
+
+  it('lays a two-branch bubble with branches on opposite sides', () => {
+    const graph: AssemblyGraph = {
+      nodes: [
+        { id: 'root', label: 'root', length: 2000, tags: {} },
+        { id: 'branch1', label: 'branch1', length: 800, tags: {} },
+        { id: 'branch2', label: 'branch2', length: 850, tags: {} },
+        { id: 'tip', label: 'tip', length: 500, tags: {} },
+      ],
+      edges: [
+        {
+          id: 'root-branch1',
+          source: 'root',
+          target: 'branch1',
+          sourceOrient: '+',
+          targetOrient: '+',
+          tags: {},
+        },
+        {
+          id: 'root-branch2',
+          source: 'root',
+          target: 'branch2',
+          sourceOrient: '+',
+          targetOrient: '+',
+          tags: {},
+        },
+        {
+          id: 'branch1-tip',
+          source: 'branch1',
+          target: 'tip',
+          sourceOrient: '+',
+          targetOrient: '+',
+          tags: {},
+        },
+        {
+          id: 'branch2-tip',
+          source: 'branch2',
+          target: 'tip',
+          sourceOrient: '+',
+          targetOrient: '+',
+          tags: {},
+        },
+      ],
+      warnings: [],
+      stats: { nodeCount: 4, edgeCount: 4, totalLength: 4150 },
+    };
+
+    const positions = bandageEndpointPositions(graph);
+    const branch1MidX = (positions['branch1::__left'].x + positions['branch1::__right'].x) / 2;
+    const branch2MidX = (positions['branch2::__left'].x + positions['branch2::__right'].x) / 2;
+    const rootToBranch1 = Math.hypot(
+      positions['root::__right'].x - positions['branch1::__left'].x,
+      positions['root::__right'].y - positions['branch1::__left'].y,
+    );
+    const rootToBranch2 = Math.hypot(
+      positions['root::__right'].x - positions['branch2::__left'].x,
+      positions['root::__right'].y - positions['branch2::__left'].y,
+    );
+    const branch1Length = Math.hypot(
+      positions['branch1::__right'].x - positions['branch1::__left'].x,
+      positions['branch1::__right'].y - positions['branch1::__left'].y,
+    );
+    const branch2Length = Math.hypot(
+      positions['branch2::__right'].x - positions['branch2::__left'].x,
+      positions['branch2::__right'].y - positions['branch2::__left'].y,
+    );
+
+    expect(Object.keys(positions)).toHaveLength(8);
+    expect(branch1MidX).toBeLessThan(positions['root::__right'].x);
+    expect(branch2MidX).toBeGreaterThan(positions['root::__right'].x);
+    expect(rootToBranch1).toBeLessThan(branch1Length);
+    expect(rootToBranch2).toBeLessThan(branch2Length);
   });
 
   it('keeps longer segments visibly longer', () => {
