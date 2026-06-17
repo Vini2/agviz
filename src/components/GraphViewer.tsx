@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import cytoscape from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 import type { AssemblyGraph } from '../graph/graphTypes';
@@ -13,6 +13,7 @@ import {
 } from '../graph/layouts';
 import type { LayoutName } from '../graph/layouts';
 import type { ThemeMode } from '../graph/coverageColors';
+import { GraphOverlay } from './GraphOverlay';
 
 cytoscape.use(fcose);
 
@@ -38,6 +39,8 @@ export function GraphViewer({
 }: GraphViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
+  const [cyInstance, setCyInstance] = useState<cytoscape.Core | null>(null);
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
 
   const handleSelect = useCallback(
     (event: cytoscape.EventObject) => {
@@ -48,6 +51,8 @@ export function GraphViewer({
 
       const data = ele.data() as Record<string, unknown>;
       if (data.kind === 'contig-body') {
+        const segId = String(data.segmentId);
+        setSelectedSegmentId(segId);
         onSelect({
           kind: 'node',
           data: {
@@ -85,6 +90,7 @@ export function GraphViewer({
   );
 
   const handleUnselect = useCallback(() => {
+    setSelectedSegmentId(null);
     onSelect(null);
   }, [onSelect]);
 
@@ -103,10 +109,12 @@ export function GraphViewer({
     cy.on('unselect', 'edge', handleUnselect);
 
     cyRef.current = cy;
+    setCyInstance(cy);
 
     return () => {
       cy.destroy();
       cyRef.current = null;
+      setCyInstance(null);
     };
   }, [handleSelect, handleUnselect, themeMode]);
 
@@ -166,6 +174,13 @@ export function GraphViewer({
         className="graph-viewer-canvas"
         aria-label="Assembly graph canvas"
         role="img"
+      />
+      <GraphOverlay
+        cy={cyInstance}
+        graph={graph}
+        themeMode={themeMode}
+        colorByCoverage={colorByCoverage}
+        selectedSegmentId={selectedSegmentId}
       />
     </div>
   );

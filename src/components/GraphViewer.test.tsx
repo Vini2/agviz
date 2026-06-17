@@ -15,6 +15,9 @@ vi.mock('cytoscape', () => {
     fit: vi.fn(),
     destroy: vi.fn(),
     use: vi.fn(),
+    pan: vi.fn().mockReturnValue({ x: 0, y: 0 }),
+    zoom: vi.fn().mockReturnValue(1),
+    getElementById: vi.fn().mockReturnValue({ length: 0, position: () => ({ x: 0, y: 0 }) }),
   };
   const cytoscape = vi.fn().mockReturnValue(mockCy);
   (cytoscape as unknown as { use: () => void }).use = vi.fn();

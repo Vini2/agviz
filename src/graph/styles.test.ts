@@ -15,12 +15,15 @@ describe('createStylesheet', () => {
     expect(endpoint['opacity']).toBe(0);
   });
 
-  it('styles contig-body edges as thicker than gfa-link edges', () => {
+  it('styles contig-body edges as invisible (SVG overlay renders them)', () => {
     const styles = createStylesheet('light');
     const contig = findStyle(styles, 'edge.contig-body');
     const link = findStyle(styles, 'edge.gfa-link');
 
-    expect(contig['width']).toBe('data(thickness)');
+    // Contig bodies are invisible; the SVG GraphOverlay draws the curved visual
+    expect(contig['opacity']).toBe(0);
+    // Width is kept wide (>1) so the chord line remains a click target
+    expect(Number(contig['width'])).toBeGreaterThan(1);
     expect(Number(link['width'])).toBeLessThan(1);
   });
 
