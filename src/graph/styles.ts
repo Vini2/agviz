@@ -57,26 +57,20 @@ export function createStylesheet(themeMode: ThemeMode): cytoscape.StylesheetStyl
     {
       selector: 'edge.contig-body',
       style: {
-        width: 'data(thickness)',
-        label: 'data(label)',
-        'line-color': 'data(color)',
+        // Invisible: the SVG overlay in GraphOverlay.tsx renders the curved visual.
+        // Width is kept at 10 so the chord line remains a click target for selection.
+        width: 10,
+        opacity: 0,
+        label: '',
         'curve-style': 'straight',
         'target-arrow-shape': 'none',
         'source-arrow-shape': 'none',
-        color: palette.textColor,
-        'font-size': '7px',
-        'text-opacity': 0.85,
-        'font-weight': 'bold',
-        'text-rotation': 'autorotate',
-        'text-background-color': palette.graphBackground,
-        'text-background-opacity': 0.75,
-        'text-background-padding': '2px',
       } as cytoscape.Css.Edge,
     },
     {
       selector: 'edge.contig-body:selected',
       style: {
-        'line-color': palette.contigSelectionColor,
+        opacity: 0,
       } as cytoscape.Css.Edge,
     },
     {
