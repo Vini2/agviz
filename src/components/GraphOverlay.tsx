@@ -12,6 +12,7 @@ import {
 import { contigVisualThickness } from '../graph/visualScale';
 import { endpointId, mapLinkEndpoints } from '../graph/cytoscapeElements';
 import { deduplicateReciprocalLinks } from '../graph/linkDeduplication';
+import { endpointId, graphToCytoscape } from '../graph/cytoscapeElements';
 import { curvedSegmentPath, majorArcPath, graphCentre, type Point } from '../graph/arcGeometry';
 import { getThemePalette } from '../graph/styles';
 import type { LayoutName } from '../graph/layouts';
@@ -171,6 +172,8 @@ function bubbleBranchPath(left: Point, right: Point, side: BranchSide): string {
   };
 
   return `M ${left.x} ${left.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${right.x} ${right.y}`;
+  edgeId: string;
+  pathD: string;
 }
 
 export interface GraphOverlayProps {
@@ -182,6 +185,8 @@ export interface GraphOverlayProps {
   layout?: LayoutName;
   selectedLinkId?: string | null;
   onLinkSelect?: (edge: AssemblyEdge) => void;
+  selectedLinkId?: string | null;
+  onSelectElement?: (selection: { kind: 'segment' | 'link'; id: string }) => void;
 }
 
 function modelToViewport(
@@ -208,6 +213,11 @@ export function GraphOverlay({
   const [segmentPaths, setSegmentPaths] = useState<SegmentPath[]>([]);
   const [linkPaths, setLinkPaths] = useState<LinkPath[]>([]);
   const [pressedLinkId, setPressedLinkId] = useState<string | null>(null);
+  selectedLinkId = null,
+  onSelectElement,
+}: GraphOverlayProps) {
+  const [paths, setPaths] = useState<SegmentPath[]>([]);
+  const [linkPaths, setLinkPaths] = useState<LinkPath[]>([]);
   const rafRef = useRef<number | null>(null);
   const palette = getThemePalette(themeMode);
   const isBandageStyle = layout === 'bandage';
@@ -215,6 +225,7 @@ export function GraphOverlay({
   const buildPaths = useCallback(() => {
     if (!cy || !graph || graph.nodes.length === 0) {
       setSegmentPaths([]);
+      setPaths([]);
       setLinkPaths([]);
       return;
     }
@@ -238,6 +249,7 @@ export function GraphOverlay({
 
     if (allViewportPositions.length === 0) {
       setSegmentPaths([]);
+      setPaths([]);
       setLinkPaths([]);
       return;
     }
@@ -249,6 +261,7 @@ export function GraphOverlay({
     const bandageCurvature = bandageCurvatureForGraph(graph);
 
     const newPaths: SegmentPath[] = [];
+    const newLinkPaths: LinkPath[] = [];
 
     for (const node of graph.nodes) {
       const leftEle = cy.getElementById(endpointId(node.id, 'left'));
@@ -333,6 +346,27 @@ export function GraphOverlay({
     setLinkPaths(newLinkPaths);
   }, [cy, graph, themeMode, colorByCoverage, isBandageStyle]);
 
+    const elements = graphToCytoscape(graph, { themeMode, colorByCoverage });
+    for (const edge of elements.edges) {
+      const data = edge.data as Record<string, unknown>;
+      if (data.kind !== 'gfa-link') continue;
+      const sourceId = String(data.source);
+      const targetId = String(data.target);
+      const sourceEle = cy.getElementById(sourceId);
+      const targetEle = cy.getElementById(targetId);
+      if (sourceEle.length === 0 || targetEle.length === 0) continue;
+      const source = modelToViewport(sourceEle.position(), pan, zoom);
+      const target = modelToViewport(targetEle.position(), pan, zoom);
+      newLinkPaths.push({
+        edgeId: String(data.id),
+        pathD: curvedSegmentPath(source, target, centre, 0.18),
+      });
+    }
+
+    setPaths(newPaths);
+    setLinkPaths(newLinkPaths);
+  }, [cy, graph, themeMode, colorByCoverage]);
+
   // Keep a stable ref to the latest buildPaths so the RAF callback never goes stale
   const buildPathsRef = useRef(buildPaths);
   buildPathsRef.current = buildPaths;
@@ -373,6 +407,7 @@ export function GraphOverlay({
   }, [graph, layout]);
 
   if (!graph || segmentPaths.length === 0) return null;
+  if (!graph || (paths.length === 0 && linkPaths.length === 0)) return null;
 
   return (
     <svg
@@ -423,6 +458,37 @@ export function GraphOverlay({
         );
       })}
       {segmentPaths.map(({ segmentId, pathD, color, thickness, label, labelX, labelY }) => {
+      {linkPaths.map(({ edgeId, pathD }) => {
+        const isSelected = edgeId === selectedLinkId;
+        return (
+          <g key={edgeId}>
+            <path
+              className="graph-overlay-link-visible"
+              d={pathD}
+              stroke={isSelected ? palette.edgeSelectionColor : palette.linkColor}
+              strokeWidth={isSelected ? 1.5 : 0.75}
+              strokeLinecap="round"
+              fill="none"
+              opacity={0.75}
+            />
+            <path
+              className="graph-overlay-link-hit"
+              data-testid={`link-hit-${edgeId}`}
+              d={pathD}
+              stroke="transparent"
+              strokeWidth={12}
+              strokeLinecap="round"
+              fill="none"
+              pointerEvents="stroke"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectElement?.({ kind: 'link', id: edgeId });
+              }}
+            />
+          </g>
+        );
+      })}
+      {paths.map(({ segmentId, pathD, color, thickness, label, labelX, labelY }) => {
         const isSelected = segmentId === selectedSegmentId;
         const strokeColor = isSelected ? palette.contigSelectionColor : color;
 
@@ -430,6 +496,7 @@ export function GraphOverlay({
           <g key={segmentId}>
             <path
               className="contig-path"
+              className="graph-overlay-segment-visible"
               d={pathD}
               stroke={strokeColor}
               strokeWidth={thickness}
@@ -450,6 +517,32 @@ export function GraphOverlay({
                 {label}
               </text>
             )}
+            <path
+              className="graph-overlay-segment-hit"
+              data-testid={`segment-hit-${segmentId}`}
+              d={pathD}
+              stroke="transparent"
+              strokeWidth={14}
+              strokeLinecap="round"
+              fill="none"
+              pointerEvents="stroke"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectElement?.({ kind: 'segment', id: segmentId });
+              }}
+            />
+            <text
+              x={labelX}
+              y={labelY}
+              fill={palette.textColor}
+              fontSize="7"
+              fontWeight="bold"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              style={{ userSelect: 'none' }}
+            >
+              {label}
+            </text>
           </g>
         );
       })}
